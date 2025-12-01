@@ -97,3 +97,17 @@ Demo
 (Suggestion: Record a quick GIF of the app in action—from entering a username to revealing the final pick—and embed it here!)
 
 [Insert your GIF or screenshot here]
+
+*** DETERMINING THE LOTTERY DRAFT ORDER ***
+1.	All teams missing the playoffs are in the Lottery
+2.	Teams with worse records get more chances at winning a top four pick (more ping pong ball combos)
+3.	The 1st overall pick is awarded by a drawing of ping pong balls
+4.	The 2nd overall pick is awarded by a drawing of ping pong balls
+5.	The 3rd overall pick is awarded by a drawing of ping pong balls
+6.	The 4th overall pick is awarded by a drawing of ping pong balls
+7.	Remaining lottery teams, sorted by record, fill out picks 5-14
+8.	Playoff teams, sorted by record, are assigned picks 15-30 - playoff seeds and outcomes have no impact
+9.	Random drawing decides who picks first between teams with same record
+10.	Tied lottery teams split their ping pong balls evenly, and any odd remainder and the better draft order position are given to the random drawing winner
+11.	Second round is ordered by record without playoff consideration
+12.	Second round ties are in reverse order of the teams' first round picks
