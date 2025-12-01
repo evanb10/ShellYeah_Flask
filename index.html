@@ -209,6 +209,7 @@
                 <h2 class="text-2xl mb-6 flex items-center text-white">
                     <span class="mr-3 text-3xl">🐢</span> League Analytics
                 </h2>
+                <p class="text-emerald-300 mb-4 text-sm">Click on a team row to view full roster details.</p>
                 <div class="overflow-hidden rounded-xl border-2 border-emerald-700 shadow-inner">
                     <table class="min-w-full divide-y divide-emerald-700">
                         <thead class="bg-emerald-900 text-emerald-100">
@@ -253,12 +254,79 @@
         </div>
     </div>
 
+    <!-- TEAM DETAILS VIEW (Drill-down) -->
+    <section id="team-details-view" class="hidden bg-emerald-800 p-6 rounded-2xl shadow-xl mt-6 border-b-8 border-emerald-950 animate-fade-in">
+        <!-- Navigation & Header -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 border-b border-emerald-700 pb-6">
+            <div class="flex items-center gap-4">
+                <button onclick="hideTeamDetails()" class="bg-emerald-900 hover:bg-emerald-950 text-emerald-300 font-bold py-2 px-4 rounded-lg border border-emerald-700 transition flex items-center gap-2 group">
+                    <span class="group-hover:-translate-x-1 transition">←</span> Back
+                </button>
+                <div class="flex items-center gap-3" id="team-header-info">
+                    <!-- Injected via JS: Avatar + Name -->
+                </div>
+            </div>
+            <div class="flex gap-2" id="team-header-stats">
+                <!-- Injected via JS: Record, Rank, etc -->
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-emerald-900/50 p-4 rounded-xl border border-emerald-700">
+                <p class="text-xs text-emerald-400 uppercase font-bold">Avg Weekly Pts</p>
+                <p class="text-2xl font-bold text-orange-400" id="stat-avg-pts">0.0</p>
+            </div>
+            <div class="bg-emerald-900/50 p-4 rounded-xl border border-emerald-700">
+                <p class="text-xs text-emerald-400 uppercase font-bold">Total Season Pts</p>
+                <p class="text-2xl font-bold text-white" id="stat-total-pts">0.0</p>
+            </div>
+            <div class="bg-emerald-900/50 p-4 rounded-xl border border-emerald-700">
+                <p class="text-xs text-emerald-400 uppercase font-bold">Avg Roster Age</p>
+                <p class="text-2xl font-bold text-white" id="stat-avg-age">0.0</p>
+            </div>
+            <div class="bg-emerald-900/50 p-4 rounded-xl border border-emerald-700">
+                <p class="text-xs text-emerald-400 uppercase font-bold">Roster Size</p>
+                <p class="text-2xl font-bold text-white" id="stat-roster-size">0</p>
+            </div>
+        </div>
+
+        <!-- Roster Table -->
+        <h3 class="text-xl text-white mb-4 font-bold flex items-center gap-2">
+            <span>📋</span> Active Roster
+        </h3>
+        <div class="overflow-hidden rounded-xl border-2 border-emerald-700 bg-emerald-900/30">
+            <table class="min-w-full divide-y divide-emerald-700">
+                <thead class="bg-emerald-900 text-emerald-100 select-none">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider cursor-pointer hover:text-white hover:bg-emerald-800 transition" onclick="sortRoster('name')">
+                            Player <span id="sort-indicator-name" class="ml-1"></span>
+                        </th>
+                        <th class="px-6 py-3 text-center text-xs font-bold uppercase tracking-wider cursor-pointer hover:text-white hover:bg-emerald-800 transition" onclick="sortRoster('position')">
+                            Pos <span id="sort-indicator-position" class="ml-1"></span>
+                        </th>
+                        <th class="px-6 py-3 text-center text-xs font-bold uppercase tracking-wider cursor-pointer hover:text-white hover:bg-emerald-800 transition" onclick="sortRoster('team')">
+                            NBA Team <span id="sort-indicator-team" class="ml-1"></span>
+                        </th>
+                        <th class="px-6 py-3 text-center text-xs font-bold uppercase tracking-wider cursor-pointer hover:text-white hover:bg-emerald-800 transition" onclick="sortRoster('age')">
+                            Age <span id="sort-indicator-age" class="ml-1"></span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody id="team-view-roster" class="divide-y divide-emerald-700/50 text-white"></tbody>
+            </table>
+        </div>
+    </section>
+
     <script>
         const API_URL = 'http://localhost:5000';
         let currentMode = 'lottery';
         let lotteryTeams = [];
         let finalDraftOrder = [];
         let fetchedLeaguesCache = null;
+        let currentAnalyticsData = []; // Store analytics data for drill-down
+        let activeRosterData = [];
+        let sortState = { column: 'name', direction: 'asc' };
 
         // DOM Shortcuts
         const dom = {
@@ -287,7 +355,15 @@
             logoutBtn: document.getElementById('logout-btn'),
             navLogoutBtn: document.getElementById('nav-logout-btn'),
             helpModal: document.getElementById('help-modal'),
-            helpContent: document.getElementById('help-content')
+            helpContent: document.getElementById('help-content'),
+            // Team Details View Shortcuts
+            teamDetailsView: document.getElementById('team-details-view'),
+            teamHeaderInfo: document.getElementById('team-header-info'),
+            statAvgPts: document.getElementById('stat-avg-pts'),
+            statTotalPts: document.getElementById('stat-total-pts'),
+            statAvgAge: document.getElementById('stat-avg-age'),
+            statRosterSize: document.getElementById('stat-roster-size'),
+            teamViewRoster: document.getElementById('team-view-roster')
         };
 
         const ODDS_PRESETS = { 
@@ -340,11 +416,13 @@
                 content = `
                     <h4 class="text-xl font-bold text-white mb-2">Analytics Dashboard</h4>
                     <p>View stats for every team in your league.</p>
-                    <ul class="list-disc list-inside mt-2 text-sm text-emerald-300 space-y-1">
-                        <li><strong>Avg Age:</strong> Average age of players on the roster.</li>
-                        <li><strong>Avg Score:</strong> Weekly fantasy point average.</li>
-                        <li><strong>Roster:</strong> Positional breakdown.</li>
-                    </ul>
+                    <p class="mt-2"><strong>Click on any team</strong> to view their full roster and detailed breakdown.</p>
+                `;
+            } else if (!dom.teamDetailsView.classList.contains('hidden')) {
+                content = `
+                    <h4 class="text-xl font-bold text-white mb-2">Team Details</h4>
+                    <p>Deep dive into a specific team's roster.</p>
+                    <p class="mt-2 text-sm text-emerald-300">Check average ages, positions, and NBA team affiliations.</p>
                 `;
             } else if (!dom.setupSec.classList.contains('hidden')) {
                 content = `
@@ -371,6 +449,116 @@
 
         function closeHelp() {
             dom.helpModal.classList.add('hidden');
+        }
+
+        // --- Team Details Drill-Down ---
+        function hideTeamDetails() {
+            dom.teamDetailsView.classList.add('hidden');
+            dom.analyticsDash.classList.remove('hidden');
+            window.scrollTo(0, 0);
+        }
+
+        function showTeamDetails(teamIndex) {
+            const team = currentAnalyticsData[teamIndex];
+            if (!team) return;
+
+            // 1. Populate Header
+            const avatarHtml = team.avatar 
+                ? `<img src="${team.avatar}" class="w-16 h-16 rounded-full border-4 border-orange-500 shadow-lg">` 
+                : `<div class="w-16 h-16 rounded-full border-4 border-orange-500 bg-emerald-900 flex items-center justify-center text-2xl shadow-lg">🐢</div>`;
+            
+            dom.teamHeaderInfo.innerHTML = `
+                ${avatarHtml}
+                <div>
+                    <h2 class="text-3xl font-black text-white leading-none brand-font">${team.team_name}</h2>
+                    <p class="text-emerald-400 font-mono font-bold mt-1">${team.wins}W - ${team.losses}L</p>
+                </div>
+            `;
+
+            // 2. Populate Stats Grid
+            dom.statAvgPts.textContent = team.avg_fpts_week;
+            dom.statTotalPts.textContent = team.total_fpts;
+            dom.statAvgAge.textContent = team.avg_age;
+            dom.statRosterSize.textContent = team.roster_size;
+
+            // 3. Setup and Render Roster
+            activeRosterData = team.roster_details ? [...team.roster_details] : [];
+            
+            // Default Sort: Name Ascending
+            sortState = { column: 'name', direction: 'asc' };
+            activeRosterData.sort((a, b) => a.name.localeCompare(b.name));
+            
+            renderRosterTable();
+
+            // 4. Switch Views
+            dom.analyticsDash.classList.add('hidden');
+            dom.teamDetailsView.classList.remove('hidden');
+            window.scrollTo(0, 0);
+        }
+
+        function renderRosterTable() {
+            let tableRows = '';
+            if (activeRosterData && activeRosterData.length > 0) {
+                activeRosterData.forEach(p => {
+                    tableRows += `
+                        <tr class="hover:bg-emerald-800/50 transition last:border-0">
+                            <td class="px-6 py-4 font-bold text-white whitespace-nowrap">${p.name}</td>
+                            <td class="px-6 py-4 text-center"><span class="pos-badge pos-${p.position}">${p.position}</span></td>
+                            <td class="px-6 py-4 text-center text-emerald-300 font-mono">${p.team}</td>
+                            <td class="px-6 py-4 text-center text-emerald-400">${p.age}</td>
+                        </tr>
+                    `;
+                });
+            } else {
+                tableRows = '<tr><td colspan="4" class="text-center py-8 text-emerald-400 italic">No players found on this roster.</td></tr>';
+            }
+            dom.teamViewRoster.innerHTML = tableRows;
+            updateSortIndicators();
+        }
+
+        function sortRoster(column) {
+            // Toggle direction if clicking same column
+            if (sortState.column === column) {
+                sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortState.column = column;
+                sortState.direction = 'asc';
+            }
+
+            activeRosterData.sort((a, b) => {
+                let valA = a[column];
+                let valB = b[column];
+
+                // Special handling for numbers or specific fields
+                if (column === 'age') {
+                    // Handle N/A for age
+                    const numA = valA === 'N/A' ? -1 : parseFloat(valA);
+                    const numB = valB === 'N/A' ? -1 : parseFloat(valB);
+                    // Sort N/A to bottom usually, but let's just sort strictly
+                    if (numA < numB) return sortState.direction === 'asc' ? -1 : 1;
+                    if (numA > numB) return sortState.direction === 'asc' ? 1 : -1;
+                    return 0;
+                } 
+                
+                // Default string sort
+                if (valA < valB) return sortState.direction === 'asc' ? -1 : 1;
+                if (valA > valB) return sortState.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            renderRosterTable();
+        }
+
+        function updateSortIndicators() {
+            const cols = ['name', 'position', 'team', 'age'];
+            const arrows = { 'asc': '▲', 'desc': '▼' };
+            
+            cols.forEach(col => {
+                const el = document.getElementById(`sort-indicator-${col}`);
+                if (el) {
+                    el.textContent = (sortState.column === col) ? arrows[sortState.direction] : '';
+                }
+            });
         }
 
         // --- Navigation & State Management ---
@@ -401,6 +589,12 @@
                 dom.analyticsCont.classList.remove('hidden');
             }
 
+            // Ensure we are at the root of the section
+            dom.teamDetailsView.classList.add('hidden');
+            if(dom.analyticsCont.classList.contains('hidden') === false) {
+                 dom.analyticsDash.classList.remove('hidden');
+            }
+
             // State Persistence Logic
             if (fetchedLeaguesCache && fetchedLeaguesCache.length > 0) {
                 renderLeaguesList(fetchedLeaguesCache);
@@ -409,7 +603,10 @@
                 
                 dom.setupSec.classList.add('hidden');
                 dom.resultsSec.classList.add('hidden');
-                dom.analyticsDash.classList.add('hidden');
+                
+                if (mode === 'lottery') {
+                    dom.analyticsDash.classList.add('hidden');
+                }
             } else {
                 dom.step1.classList.remove('hidden');
                 dom.step2.classList.add('hidden');
@@ -495,6 +692,7 @@
             } else {
                 const data = await fetchApi('/get_league_analytics', { league_id: id });
                 if (data && data.analytics) {
+                    currentAnalyticsData = data.analytics; // Store for modal
                     renderAnalytics(data.analytics);
                     dom.analyticsDash.classList.remove('hidden');
                     dom.step2.classList.add('hidden');
@@ -513,9 +711,10 @@
                 });
 
                 const tr = document.createElement('tr');
-                tr.className = "hover:bg-emerald-900/50 transition";
+                tr.className = "hover:bg-emerald-700/50 transition cursor-pointer group border-b border-emerald-800/30";
+                tr.onclick = () => showTeamDetails(index); // UPDATED: Call showTeamDetails
                 tr.innerHTML = `
-                    <td class="px-4 py-4 whitespace-nowrap flex items-center">${avatarImg} <span class="font-bold text-white">${t.team_name}</span></td>
+                    <td class="px-4 py-4 whitespace-nowrap flex items-center group-hover:text-orange-200 transition">${avatarImg} <span class="font-bold text-white">${t.team_name}</span></td>
                     <td class="px-4 py-4 whitespace-nowrap font-mono text-emerald-300">${t.wins}-${t.losses}</td>
                     <td class="px-4 py-4 whitespace-nowrap"><div class="text-sm font-bold text-white">${t.avg_age} <span class="text-xs text-emerald-400 font-normal">yrs</span></div></td>
                     <td class="px-4 py-4 whitespace-nowrap"><div class="text-sm font-bold text-orange-400">${t.avg_fpts_week} <span class="text-xs text-emerald-400 font-normal">pts</span></div></td>
