@@ -182,6 +182,7 @@ def calculate_team_analytics(roster: Dict, user_map: Dict, all_players: Dict) ->
                         positions[pos] += 1
             
             roster_details.append({
+                "player_id": pid,
                 "name": f"{p_data.get('first_name', '')} {p_data.get('last_name', '')}".strip(),
                 "position": primary_pos,
                 "age": age if age else "N/A",
@@ -215,6 +216,45 @@ def calculate_team_analytics(roster: Dict, user_map: Dict, all_players: Dict) ->
 @app.route('/')
 def serve_index():
     return send_from_directory('.', 'index.html')
+
+@app.route('/get_player_details', methods=['POST'])
+def handle_get_player_details():
+    data = request.json
+    player_id = data.get('player_id')
+    
+    if not player_id:
+        return jsonify({"error": "Player ID is required"}), 400
+        
+    # Ensure players are loaded
+    all_players = get_all_players()
+    player = all_players.get(player_id)
+    
+    if not player:
+        return jsonify({"error": "Player not found"}), 404
+        
+    # Construct detailed payload
+    # Sleeper player object fields: 
+    # first_name, last_name, position, team, number, height, weight, college, age, 
+    # years_exp, injury_status, injury_body_part, injury_start_date, injury_notes
+    
+    details = {
+        "full_name": f"{player.get('first_name', '')} {player.get('last_name', '')}".strip(),
+        "team": player.get('team') or "FA",
+        "position": player.get('position'),
+        "number": player.get('number'),
+        "height": player.get('height'),
+        "weight": player.get('weight'),
+        "age": player.get('age'),
+        "college": player.get('college'),
+        "experience": player.get('years_exp'),
+        "injury_status": player.get('injury_status'),
+        "injury_body_part": player.get('injury_body_part'),
+        "injury_notes": player.get('injury_notes'),
+        # Construct a search link for news since we don't have a live feed
+        "news_search_query": f"{player.get('first_name', '')} {player.get('last_name', '')} injury news"
+    }
+    
+    return jsonify(details)
 
 @app.route('/get_leagues', methods=['POST'])
 def handle_get_leagues():

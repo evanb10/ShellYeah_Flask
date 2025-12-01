@@ -318,6 +318,82 @@
         </div>
     </section>
 
+    <!-- PLAYER DETAILS VIEW -->
+    <section id="player-details-view" class="hidden bg-emerald-800 p-6 rounded-2xl shadow-xl mt-6 border-b-8 border-emerald-950 animate-fade-in">
+        <div class="flex items-center gap-4 mb-8 border-b border-emerald-700 pb-6">
+            <button onclick="hidePlayerDetails()" class="bg-emerald-900 hover:bg-emerald-950 text-emerald-300 font-bold py-2 px-4 rounded-lg border border-emerald-700 transition flex items-center gap-2 group">
+                <span class="group-hover:-translate-x-1 transition">←</span> Back to Team
+            </button>
+        </div>
+
+        <div class="flex flex-col md:flex-row gap-8">
+            <!-- Left Column: Player Card -->
+            <div class="w-full md:w-1/3">
+                <div class="bg-emerald-900 p-6 rounded-2xl border-2 border-emerald-700 text-center shadow-lg relative overflow-hidden">
+                    <!-- Jersey Number Background -->
+                    <div id="player-number-bg" class="absolute top-0 right-0 text-9xl font-black text-emerald-800 opacity-30 -mr-4 -mt-4 font-mono select-none"></div>
+                    
+                    <div class="relative z-10">
+                        <div class="w-32 h-32 mx-auto bg-emerald-800 rounded-full border-4 border-orange-500 flex items-center justify-center mb-4 shadow-lg">
+                            <span id="player-initials" class="text-4xl font-black text-emerald-400"></span>
+                        </div>
+                        <h2 id="player-name" class="text-2xl font-bold text-white mb-1 brand-font"></h2>
+                        <p id="player-meta" class="text-emerald-400 font-mono text-sm font-bold uppercase tracking-widest"></p>
+                        
+                        <div class="mt-6 pt-6 border-t border-emerald-800 grid grid-cols-2 gap-4 text-left">
+                            <div>
+                                <p class="text-xs text-emerald-500 uppercase font-bold">Height</p>
+                                <p id="player-height" class="text-white font-mono"></p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-emerald-500 uppercase font-bold">Weight</p>
+                                <p id="player-weight" class="text-white font-mono"></p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-emerald-500 uppercase font-bold">Age</p>
+                                <p id="player-age" class="text-white font-mono"></p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-emerald-500 uppercase font-bold">Exp</p>
+                                <p id="player-exp" class="text-white font-mono"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Status & News -->
+            <div class="w-full md:w-2/3 flex flex-col gap-6">
+                
+                <!-- Status Card -->
+                <div class="bg-emerald-900/50 p-6 rounded-2xl border border-emerald-700">
+                    <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                        🚑 Injury Status
+                    </h3>
+                    <div class="flex items-center gap-4">
+                        <div id="status-indicator" class="px-4 py-2 rounded-lg font-bold text-sm uppercase tracking-wide"></div>
+                        <div>
+                            <p id="injury-detail" class="text-white font-bold"></p>
+                            <p id="injury-notes" class="text-emerald-400 text-sm italic mt-1"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- News Actions -->
+                <div class="bg-emerald-900/50 p-6 rounded-2xl border border-emerald-700">
+                    <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                        📰 Latest News
+                    </h3>
+                    <p class="text-emerald-300 text-sm mb-6">Get the latest updates, fantasy analysis, and injury reports from around the web.</p>
+                    <a id="news-link" href="#" target="_blank" class="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 px-6 rounded-xl transition shadow-lg border-b-4 border-orange-800 active:border-b-0 active:translate-y-1">
+                        <span>🔍</span> Search Recent News
+                    </a>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
     <script>
         const API_URL = 'http://localhost:5000';
         let currentMode = 'lottery';
@@ -363,7 +439,21 @@
             statTotalPts: document.getElementById('stat-total-pts'),
             statAvgAge: document.getElementById('stat-avg-age'),
             statRosterSize: document.getElementById('stat-roster-size'),
-            teamViewRoster: document.getElementById('team-view-roster')
+            teamViewRoster: document.getElementById('team-view-roster'),
+            // Player Details View Shortcuts
+            playerDetailsView: document.getElementById('player-details-view'),
+            playerName: document.getElementById('player-name'),
+            playerMeta: document.getElementById('player-meta'),
+            playerHeight: document.getElementById('player-height'),
+            playerWeight: document.getElementById('player-weight'),
+            playerAge: document.getElementById('player-age'),
+            playerExp: document.getElementById('player-exp'),
+            playerInitials: document.getElementById('player-initials'),
+            playerNumberBg: document.getElementById('player-number-bg'),
+            statusIndicator: document.getElementById('status-indicator'),
+            injuryDetail: document.getElementById('injury-detail'),
+            injuryNotes: document.getElementById('injury-notes'),
+            newsLink: document.getElementById('news-link')
         };
 
         const ODDS_PRESETS = { 
@@ -422,7 +512,13 @@
                 content = `
                     <h4 class="text-xl font-bold text-white mb-2">Team Details</h4>
                     <p>Deep dive into a specific team's roster.</p>
-                    <p class="mt-2 text-sm text-emerald-300">Check average ages, positions, and NBA team affiliations.</p>
+                    <p class="mt-2 text-sm text-emerald-300">Check average ages, positions, and NBA team affiliations. Click a player to see their status.</p>
+                `;
+            } else if (!dom.playerDetailsView.classList.contains('hidden')) {
+                content = `
+                    <h4 class="text-xl font-bold text-white mb-2">Player Bio</h4>
+                    <p>View individual player stats, physical profile, and injury reports.</p>
+                    <p class="mt-2 text-sm text-emerald-300">Use the 'Search Recent News' button to find the latest updates online.</p>
                 `;
             } else if (!dom.setupSec.classList.contains('hidden')) {
                 content = `
@@ -501,8 +597,8 @@
             if (activeRosterData && activeRosterData.length > 0) {
                 activeRosterData.forEach(p => {
                     tableRows += `
-                        <tr class="hover:bg-emerald-800/50 transition last:border-0">
-                            <td class="px-6 py-4 font-bold text-white whitespace-nowrap">${p.name}</td>
+                        <tr class="hover:bg-emerald-700/50 transition last:border-0 cursor-pointer group" onclick="showPlayerDetails('${p.player_id}')">
+                            <td class="px-6 py-4 font-bold text-white whitespace-nowrap group-hover:text-orange-300 transition">${p.name}</td>
                             <td class="px-6 py-4 text-center"><span class="pos-badge pos-${p.position}">${p.position}</span></td>
                             <td class="px-6 py-4 text-center text-emerald-300 font-mono">${p.team}</td>
                             <td class="px-6 py-4 text-center text-emerald-400">${p.age}</td>
@@ -561,6 +657,76 @@
             });
         }
 
+        // --- Player Details View ---
+        async function showPlayerDetails(playerId) {
+            if (!playerId) return;
+            
+            const data = await fetchApi('/get_player_details', { player_id: playerId });
+            if (!data) return;
+
+            // Populate Basic Info
+            dom.playerName.textContent = data.full_name;
+            dom.playerMeta.textContent = `${data.team} • #${data.number || '00'} • ${data.position}`;
+            
+            // Convert height from inches to feet and inches
+            let formattedHeight = "N/A";
+            if (data.height) {
+                const totalInches = parseInt(data.height);
+                if (!isNaN(totalInches)) {
+                    const feet = Math.floor(totalInches / 12);
+                    const inches = totalInches % 12;
+                    formattedHeight = `${feet}'${inches}"`;
+                }
+            }
+            dom.playerHeight.textContent = formattedHeight;
+
+            dom.playerWeight.textContent = data.weight ? `${data.weight} lbs` : "N/A";
+            dom.playerAge.textContent = data.age || "N/A";
+            dom.playerExp.textContent = data.experience ? `${data.experience} Yrs` : "Rookie";
+            
+            // Generate Initials
+            const initials = data.full_name.split(' ').map(n => n[0]).join('').substring(0, 2);
+            dom.playerInitials.textContent = initials;
+            dom.playerNumberBg.textContent = data.number || "";
+
+            // Status Logic
+            const status = data.injury_status || "Active";
+            let statusColor = "bg-green-600 text-white";
+            let statusText = "ACTIVE";
+            
+            if (status === "Questionable") { statusColor = "bg-yellow-500 text-emerald-900"; statusText = "QUESTIONABLE"; }
+            else if (status === "IR") { statusColor = "bg-red-600 text-white"; statusText = "IR"; }
+            else if (status === "Out") { statusColor = "bg-red-600 text-white"; statusText = "OUT"; }
+            else if (status === "Doubtful") { statusColor = "bg-orange-500 text-white"; statusText = "DOUBTFUL"; }
+            else if (status === "Day-to-Day") { statusColor = "bg-blue-500 text-white"; statusText = "DAY-TO-DAY"; }
+
+            dom.statusIndicator.className = `px-4 py-2 rounded-lg font-bold text-sm uppercase tracking-wide ${statusColor}`;
+            dom.statusIndicator.textContent = statusText;
+
+            // Injury Detail
+            if (data.injury_body_part || data.injury_notes) {
+                dom.injuryDetail.textContent = data.injury_body_part ? `${data.injury_body_part} Issue` : "Undisclosed Injury";
+                dom.injuryNotes.textContent = data.injury_notes || "No additional notes provided.";
+            } else {
+                dom.injuryDetail.textContent = "Healthy";
+                dom.injuryNotes.textContent = "Ready to play.";
+            }
+
+            // News Link
+            dom.newsLink.href = `https://www.google.com/search?q=${encodeURIComponent(data.news_search_query)}&tbm=nws`;
+
+            // Transition View
+            dom.teamDetailsView.classList.add('hidden');
+            dom.playerDetailsView.classList.remove('hidden');
+            window.scrollTo(0, 0);
+        }
+
+        function hidePlayerDetails() {
+            dom.playerDetailsView.classList.add('hidden');
+            dom.teamDetailsView.classList.remove('hidden');
+            window.scrollTo(0, 0);
+        }
+
         // --- Navigation & State Management ---
         function switchMode(mode) {
             currentMode = mode;
@@ -591,6 +757,7 @@
 
             // Ensure we are at the root of the section
             dom.teamDetailsView.classList.add('hidden');
+            dom.playerDetailsView.classList.add('hidden'); // Hide player view
             if(dom.analyticsCont.classList.contains('hidden') === false) {
                  dom.analyticsDash.classList.remove('hidden');
             }
