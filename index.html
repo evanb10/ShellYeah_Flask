@@ -3,551 +3,676 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ShellYeah! Fantasy Lottery</title>
-    <!-- Load Tailwind CSS -->
+    <title>ShellYeah! Fantasy Suite</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
     <style>
-        /* Custom styles for the app */
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, .brand-font { font-family: 'Bungee', cursive; }
         
-        /* Loading spinner */
-        .spinner {
-            border-top-color: #3498db;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        /* --- Custom Shell Pattern Background --- */
+        .shell-bg {
+            background-color: #064e3b; /* emerald-900 */
+            background-image: 
+                radial-gradient(circle at 0% 50%, transparent 9px, #065f46 10px, #064e3b 11px, #064e3b 100%),
+                radial-gradient(at 100% 50%, transparent 9px, #065f46 10px, #064e3b 11px, #064e3b 100%);
+            background-size: 20px 20px;
         }
 
-        /* Card flip animation */
-        .card-scene {
-            perspective: 1000px;
+        /* --- Animations --- */
+        .spin-ball { animation: spin 2s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .bounce { animation: bounce 1s infinite; }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
         }
+
+        /* --- Card Flip CSS --- */
+        .card-scene { perspective: 1000px; }
         .card {
-            width: 100%;
-            height: 100%;
-            position: relative;
-            transition: transform 0.6s;
+            width: 100%; height: 100%; position: relative;
+            transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Bouncy flip */
             transform-style: preserve-3d;
         }
-        .card.is-flipped {
-            transform: rotateY(180deg);
-        }
+        .card.is-flipped { transform: rotateY(180deg); }
         .card-face {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            backface-visibility: hidden;
-            -webkit-backface-visibility: hidden;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            border-radius: 0.5rem;
+            position: absolute; width: 100%; height: 100%;
+            backface-visibility: hidden; -webkit-backface-visibility: hidden;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
         }
+        
+        /* Card FRONT (Hidden Side - The Shell) */
         .card-face-front {
-            background-color: #4a5568; /* gray-700 */
-            border: 1px solid #718096; /* gray-500 */
+            background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+            border: 4px solid #34d399;
+            background-image: linear-gradient(30deg, #065f46 12%, transparent 12.5%, transparent 87%, #065f46 87.5%, #065f46), 
+                              linear-gradient(150deg, #065f46 12%, transparent 12.5%, transparent 87%, #065f46 87.5%, #065f46), 
+                              linear-gradient(30deg, #065f46 12%, transparent 12.5%, transparent 87%, #065f46 87.5%, #065f46), 
+                              linear-gradient(150deg, #065f46 12%, transparent 12.5%, transparent 87%, #065f46 87.5%, #065f46), 
+                              linear-gradient(60deg, #065f4677 25%, transparent 25.5%, transparent 75%, #065f4677 75%, #065f4677), 
+                              linear-gradient(60deg, #065f4677 25%, transparent 25.5%, transparent 75%, #065f4677 75%, #065f4677);
+            background-size: 20px 35px;
+            background-position: 0 0, 0 0, 10px 18px, 10px 18px, 0 0, 10px 18px;
         }
+
+        /* Card BACK (Revealed Side - The Court) */
         .card-face-back {
-            background-color: #2d3748; /* gray-800 */
+            background-color: #fff7ed; /* orange-50 */
             transform: rotateY(180deg);
-            border: 1px solid #3498db;
+            border: 4px solid #f97316; /* orange-500 */
         }
+
+        .team-avatar { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 3px solid #f97316; margin-bottom: 0.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .team-avatar-sm { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; display: inline-block; vertical-align: middle; margin-right: 8px; border: 1px solid #f97316; }
+        
+        /* Analytics badges */
+        .pos-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-right: 2px; font-family: 'Inter'; }
+        .pos-PG { background: #e0f2fe; color: #0369a1; }
+        .pos-SG { background: #dbeafe; color: #1d4ed8; }
+        .pos-SF { background: #fae8ff; color: #86198f; }
+        .pos-PF { background: #fce7f3; color: #9d174d; }
+        .pos-C { background: #ffedd5; color: #9a3412; }
     </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen p-4 md:p-8">
+<body class="shell-bg text-white min-h-screen p-4 md:p-8 pb-24">
 
-    <div class="container mx-auto max-w-2xl">
+    <div class="container mx-auto max-w-5xl">
         
-        <header class="text-center mb-8">
-            <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
-                ShellYeah! Fantasy Lottery
-            </h1>
-            <p class="text-gray-400 mt-2">Find your league and run a true NBA-style lottery.</p>
-        </header>
+        <!-- Header / Navigation -->
+        <nav class="flex flex-col md:flex-row justify-between items-center mb-8 bg-emerald-900/90 backdrop-blur p-4 rounded-2xl shadow-2xl border border-emerald-700">
+            <div class="flex items-center gap-3 mb-4 md:mb-0">
+                <svg class="w-12 h-12 text-orange-500 bounce" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                </svg>
+                <div>
+                    <h1 class="text-3xl text-white tracking-wide drop-shadow-md">
+                        Shell<span class="text-orange-400">Yeah!</span>
+                    </h1>
+                    <p class="text-xs text-emerald-200 font-sans tracking-wider">FANTASY BASKETBALL SUITE</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <div class="flex gap-2 bg-emerald-950/50 p-1 rounded-xl">
+                    <button onclick="switchMode('lottery')" id="nav-lottery" class="px-6 py-2 rounded-lg font-bold transition shadow-lg flex items-center gap-2">
+                        <span>🎲</span> Lottery
+                    </button>
+                    <button onclick="switchMode('analytics')" id="nav-analytics" class="px-6 py-2 rounded-lg font-bold transition shadow-lg flex items-center gap-2">
+                        <span>📊</span> Analytics
+                    </button>
+                </div>
+                <button id="nav-logout-btn" class="hidden bg-emerald-950/50 hover:bg-red-600 hover:border-red-500 text-emerald-400 hover:text-white p-3 rounded-xl border border-emerald-800 transition shadow-lg" title="Logout">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                </button>
+            </div>
+        </nav>
 
-        <!-- Loading Indicator -->
-        <div id="loading-indicator" class="hidden fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex justify-center items-center z-50">
-            <div class="spinner w-16 h-16 border-4 border-gray-600 rounded-full"></div>
+        <!-- Loading Overlay -->
+        <div id="loading-indicator" class="hidden fixed top-0 left-0 w-full h-full bg-emerald-950/80 backdrop-blur-sm flex justify-center items-center z-50">
+            <div class="text-center">
+                <svg class="w-20 h-20 text-orange-500 spin-ball mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 0v20m0-20a10 10 0 0 1 10 10m-10-10a10 10 0 0 0-10 10m20 0a10 10 0 0 1-10 10m10-10a10 10 0 0 0-10 10"></path></svg>
+                <p class="text-orange-400 font-bold font-mono text-xl animate-pulse">SCOUTING PLAYERS...</p>
+            </div>
         </div>
 
-        <!-- Error Message -->
-        <div id="error-message" class="hidden bg-red-800 text-white p-4 rounded-lg mb-4 text-center"></div>
+        <div id="error-message" class="hidden bg-red-500 text-white p-4 rounded-lg mb-4 text-center font-bold shadow-lg border-2 border-red-700"></div>
 
-        <!-- Step 1: Enter Username -->
-        <section id="step-1-username" class="bg-gray-800 p-6 rounded-lg shadow-xl">
-            <h2 class="text-2xl font-bold mb-4">Step 1: Find Your Leagues</h2>
+        <!-- STEP 1 (Shared) -->
+        <section id="step-1-username" class="bg-emerald-800 p-8 rounded-2xl shadow-2xl border-b-8 border-emerald-950 mb-6">
+            <h2 class="text-2xl mb-6 text-white">Find Your League</h2>
             <div class="flex flex-col md:flex-row gap-4">
-                <input type="text" id="username-input" placeholder="Enter your Sleeper Username" class="flex-grow bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <input type="text" id="season-input" value="2025" placeholder="Season (e.g., 2025)" class="w-full md:w-28 bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <button id="find-leagues-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200">
-                    Find Leagues
+                <input type="text" id="username-input" placeholder="Sleeper Username" class="flex-grow bg-emerald-900/50 text-white placeholder-emerald-400 p-4 rounded-xl border-2 border-emerald-600 focus:border-orange-400 focus:outline-none transition font-mono">
+                <input type="text" id="season-input" value="2025" placeholder="Season" class="w-full md:w-32 bg-emerald-900/50 text-white placeholder-emerald-400 p-4 rounded-xl border-2 border-emerald-600 focus:border-orange-400 focus:outline-none transition font-mono text-center">
+                <button id="find-leagues-btn" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 px-8 rounded-xl transition shadow-lg border-b-4 border-orange-700 active:border-b-0 active:translate-y-1">
+                    GO TURTLES!
                 </button>
             </div>
-        </section>
-
-        <!-- Step 2: Select League -->
-        <section id="step-2-leagues" class="hidden bg-gray-800 p-6 rounded-lg shadow-xl mt-6">
-            <h2 class="text-2xl font-bold mb-4">Step 2: Select Your League</h2>
-            <p class="text-gray-400 mb-4">Select the league you want to run a lottery for. We will automatically find last season's standings.</p>
-            <div id="leagues-list" class="flex flex-col gap-3">
-                <!-- Leagues will be injected here -->
+            <!-- Logout Option -->
+            <div id="user-display" class="hidden mt-4 text-center text-emerald-300 text-sm">
+                Logged in as <span id="current-user-span" class="font-bold text-orange-300"></span> • <button id="logout-btn" class="underline hover:text-white">Change User</button>
             </div>
         </section>
 
-        <!-- Step 3: Setup Lottery -->
-        <section id="step-3-setup" class="hidden bg-gray-800 p-6 rounded-lg shadow-xl mt-6">
-            <h2 class="text-2xl font-bold mb-4">Step 3: Confirm Teams & Odds</h2>
-            <p class="text-gray-400 mb-4">These are the non-playoff teams from last season, sorted by worst record.</p>
-            
-            <div class="mb-4">
-                <label for="odds-preset" class="block text-sm font-medium text-gray-300 mb-2">Odds Preset</label>
-                <select id="odds-preset" class="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="nba-2025">NBA 2025 Odds (14 teams)</option>
-                    <option value="nba-12-teams">NBA-like Odds (12 teams)</option>
-                    <option value="nba-10-teams">NBA-like Odds (10 teams)</option>
-                    <option value="nba-8-teams">NBA-like Odds (8 teams)</option>
-                    <option value="flat">Flat Odds (Equal chance)</option>
-                    <!-- Custom option can be added later -->
-                </select>
-            </div>
-
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-700">
-                    <thead class="bg-gray-700">
-                        <tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Seed</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Team Name</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Record</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Odds</th>
-                        </tr>
-                    </thead>
-                    <tbody id="lottery-teams-table" class="bg-gray-800 divide-y divide-gray-700">
-                        <!-- Teams will be injected here -->
-                    </tbody>
-                </table>
-            </div>
-
-            <button id="run-lottery-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 mt-6">
-                Run The Lottery!
-            </button>
+        <!-- STEP 2 (Shared) -->
+        <section id="step-2-leagues" class="hidden bg-emerald-800 p-6 rounded-2xl shadow-xl mb-6 border-b-8 border-emerald-950">
+            <h2 class="text-2xl mb-4 text-white">Select League</h2>
+            <div id="leagues-list" class="flex flex-col gap-3"></div>
         </section>
 
-        <!-- Step 4: Results -->
-        <section id="step-4-results" class="hidden bg-gray-800 p-6 rounded-lg shadow-xl mt-6">
-            <h2 class="text-2xl font-bold mb-4 text-center">Lottery Results</h2>
-            <p id="reveal-instructions" class="text-gray-400 mb-6 text-center">Click the "Reveal Picks" button to start. The top 4 picks must be revealed manually!</p>
-            
-            <div class="text-center mb-6">
-                <button id="reveal-picks-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200">
-                    Reveal Picks (Bottom-Up)
+        <!-- LOTTERY SECTIONS -->
+        <div id="lottery-container" class="hidden">
+            <!-- Setup -->
+            <section id="step-3-setup" class="hidden bg-emerald-800 p-6 rounded-2xl shadow-xl mt-6 border-b-8 border-emerald-950">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl text-white">Lottery Setup</h2>
+                    <div id="odds-counter" class="text-sm font-bold bg-emerald-950 px-4 py-2 rounded-lg border border-emerald-600 font-mono text-orange-400">Total: 0/1000</div>
+                </div>
+                <div class="mb-4">
+                    <select id="odds-preset" class="w-full bg-emerald-900 text-white p-4 rounded-xl border-2 border-emerald-600 focus:border-orange-500 outline-none font-bold">
+                        <option value="nba-2025">NBA 2025 Odds (Weighted)</option>
+                        <option value="flat">Flat Odds (Equal Chance)</option>
+                    </select>
+                </div>
+                <div class="overflow-hidden rounded-xl border-2 border-emerald-700">
+                    <table class="min-w-full divide-y divide-emerald-700">
+                        <thead class="bg-emerald-900">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs text-emerald-200 uppercase font-bold">Seed</th>
+                                <th class="px-4 py-3 text-left text-xs text-emerald-200 uppercase font-bold">Team</th>
+                                <th class="px-4 py-3 text-left text-xs text-emerald-200 uppercase font-bold">Record</th>
+                                <th class="px-4 py-3 text-left text-xs text-emerald-200 uppercase font-bold">Odds</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lottery-teams-table" class="bg-emerald-800 divide-y divide-emerald-700 text-white"></tbody>
+                    </table>
+                </div>
+                <button id="run-lottery-btn" class="w-full bg-green-500 hover:bg-green-400 text-emerald-900 font-black text-xl py-4 px-6 rounded-xl mt-6 shadow-lg border-b-4 border-green-700 active:border-b-0 active:translate-y-1 transition">
+                    RUN THE SIMULATION
                 </button>
-            </div>
+            </section>
 
-            <div id="results-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <!-- Result cards will be injected here -->
-            </div>
-            
-            <div class="text-center mt-6">
-                 <button id="start-over-btn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">
-                    Start Over
-                </button>
-            </div>
-        </section>
+            <!-- Results -->
+            <section id="step-4-results" class="hidden bg-emerald-800 p-6 rounded-2xl shadow-xl mt-6 border-b-8 border-emerald-950">
+                <h2 class="text-3xl mb-2 text-center text-white drop-shadow-md">DRAFT LOTTERY</h2>
+                <p class="text-center text-emerald-200 mb-6 font-mono">Turn over the shells to see who won!</p>
+                
+                <div class="text-center mb-8">
+                    <button id="reveal-picks-btn" class="bg-orange-500 hover:bg-orange-400 text-white font-bold py-3 px-8 rounded-full shadow-lg border-b-4 border-orange-700 active:border-b-0 active:translate-y-1 transition animate-pulse">
+                        REVEAL PICKS
+                    </button>
+                </div>
 
+                <div id="results-grid" class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8"></div>
+                
+                <div class="text-center mt-10">
+                     <button id="start-over-btn" class="bg-emerald-900 hover:bg-emerald-950 text-emerald-300 font-bold py-2 px-6 rounded-lg border border-emerald-700 transition">Start Over</button>
+                </div>
+            </section>
+        </div>
+
+        <!-- ANALYTICS SECTION -->
+        <div id="analytics-container" class="hidden">
+            <section id="analytics-dashboard" class="hidden bg-emerald-800 p-6 rounded-2xl shadow-xl mt-6 border-b-8 border-emerald-950">
+                <h2 class="text-2xl mb-6 flex items-center text-white">
+                    <span class="mr-3 text-3xl">🐢</span> League Analytics
+                </h2>
+                <div class="overflow-hidden rounded-xl border-2 border-emerald-700 shadow-inner">
+                    <table class="min-w-full divide-y divide-emerald-700">
+                        <thead class="bg-emerald-900 text-emerald-100">
+                            <tr>
+                                <th class="px-4 py-4 text-left text-xs font-bold uppercase">Team</th>
+                                <th class="px-4 py-4 text-left text-xs font-bold uppercase">Record</th>
+                                <th class="px-4 py-4 text-left text-xs font-bold uppercase">Avg Age</th>
+                                <th class="px-4 py-4 text-left text-xs font-bold uppercase">Avg Score</th>
+                                <th class="px-4 py-4 text-left text-xs font-bold uppercase">Roster</th>
+                            </tr>
+                        </thead>
+                        <tbody id="analytics-table" class="bg-emerald-800 divide-y divide-emerald-700 text-white"></tbody>
+                    </table>
+                </div>
+                <p class="text-xs text-emerald-300 mt-4 text-right font-mono bg-emerald-900/50 p-2 rounded">* Data provided by Sleeper API</p>
+            </section>
+        </div>
+
+    </div>
+
+    <!-- HELP BUTTON & MODAL -->
+    <button id="help-btn" onclick="openHelp()" class="fixed bottom-4 right-4 bg-emerald-600 hover:bg-emerald-500 text-white p-4 rounded-full shadow-2xl border-2 border-emerald-400 z-50 transition transform hover:scale-110 flex items-center justify-center">
+        <span class="text-2xl font-bold font-mono">?</span>
+    </button>
+
+    <div id="help-modal" class="hidden fixed top-0 left-0 w-full h-full bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+        <div class="bg-emerald-900 border-4 border-orange-500 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden transform transition-all scale-100">
+            <div class="bg-emerald-950 p-4 flex justify-between items-center border-b border-emerald-800">
+                <h3 class="text-orange-400 font-bold font-mono text-lg flex items-center gap-2">
+                    🐢 TURTLE GUIDE
+                </h3>
+                <button onclick="closeHelp()" class="text-emerald-400 hover:text-white font-bold text-2xl">&times;</button>
+            </div>
+            <div class="p-6">
+                <div id="help-content" class="text-emerald-100 leading-relaxed font-sans">
+                    <!-- Content Injected Here -->
+                </div>
+            </div>
+            <div class="bg-emerald-950 p-3 text-center">
+                <button onclick="closeHelp()" class="bg-emerald-800 hover:bg-emerald-700 text-emerald-200 text-xs font-bold py-2 px-6 rounded-full transition">GOT IT!</button>
+            </div>
+        </div>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const API_URL = 'http://localhost:5000'; // Flask server URL
+        const API_URL = 'http://localhost:5000';
+        let currentMode = 'lottery';
+        let lotteryTeams = [];
+        let finalDraftOrder = [];
+        let fetchedLeaguesCache = null;
 
-            // --- State ---
-            let lotteryTeams = [];
-            let finalDraftOrder = [];
+        // DOM Shortcuts
+        const dom = {
+            loading: document.getElementById('loading-indicator'),
+            error: document.getElementById('error-message'),
+            step1: document.getElementById('step-1-username'),
+            step2: document.getElementById('step-2-leagues'),
+            lotteryCont: document.getElementById('lottery-container'),
+            analyticsCont: document.getElementById('analytics-container'),
+            analyticsDash: document.getElementById('analytics-dashboard'),
+            setupSec: document.getElementById('step-3-setup'),
+            resultsSec: document.getElementById('step-4-results'),
+            leaguesList: document.getElementById('leagues-list'),
+            teamsTable: document.getElementById('lottery-teams-table'),
+            analyticsTable: document.getElementById('analytics-table'),
+            resultsGrid: document.getElementById('results-grid'),
+            oddsCounter: document.getElementById('odds-counter'),
+            usernameIn: document.getElementById('username-input'),
+            seasonIn: document.getElementById('season-input'),
+            oddsPreset: document.getElementById('odds-preset'),
+            revealBtn: document.getElementById('reveal-picks-btn'),
+            navLottery: document.getElementById('nav-lottery'),
+            navAnalytics: document.getElementById('nav-analytics'),
+            userDisplay: document.getElementById('user-display'),
+            currentUserSpan: document.getElementById('current-user-span'),
+            logoutBtn: document.getElementById('logout-btn'),
+            navLogoutBtn: document.getElementById('nav-logout-btn'),
+            helpModal: document.getElementById('help-modal'),
+            helpContent: document.getElementById('help-content')
+        };
 
-            // --- UI Elements ---
-            const loadingIndicator = document.getElementById('loading-indicator');
-            const errorMessage = document.getElementById('error-message');
-            const findLeaguesBtn = document.getElementById('find-leagues-btn');
-            const runLotteryBtn = document.getElementById('run-lottery-btn');
-            const oddsPreset = document.getElementById('odds-preset');
-            const leaguesList = document.getElementById('leagues-list');
-            const teamsTable = document.getElementById('lottery-teams-table');
-            const resultsGrid = document.getElementById('results-grid');
-            const revealBtn = document.getElementById('reveal-picks-btn');
-            const startOverBtn = document.getElementById('start-over-btn');
+        const ODDS_PRESETS = { 
+            "nba-2025": { 
+                "6": { 1: 190, 2: 190, 3: 190, 4: 170, 5: 140, 6: 120 }, // 14 Teams (6 Eligible)
+                "4": { 1: 255, 2: 255, 3: 255, 4: 235 },                 // 10/12 Teams (4 Eligible)
+                "2": { 1: 500, 2: 500 },                                 // 8 Teams (2 Eligible)
+                "default": { 1: 250, 2: 250, 3: 250, 4: 250 }            // Fallback
+            } 
+        };
 
-            // --- Odds Presets (Combinations out of 1000) ---
-            const ODDS_PRESETS = {
-                "nba-2025": { // 14 teams, bottom 5 get odds
-                    1: 140, 2: 140, 3: 140, 4: 125, 5: 105
-                },
-                "nba-12-teams": { // 12 teams, bottom 4 get odds
-                    1: 325, 2: 275, 3: 225, 4: 175
-                },
-                "nba-10-teams": { // 10 teams, bottom 4 get odds
-                    1: 200, 2: 200, 3: 200, 4: 120
-                },
-                "nba-8-teams": { // 8 teams, bottom 2 get odds
-                    1: 250, 2: 250
-                }
-                // "flat" will be calculated dynamically
-            };
+        // --- Initialization ---
+        window.onload = () => {
+            const savedUser = localStorage.getItem('shell_username');
+            if (savedUser) {
+                dom.usernameIn.value = savedUser;
+                dom.currentUserSpan.textContent = savedUser;
+                dom.userDisplay.classList.remove('hidden');
+                if (dom.navLogoutBtn) dom.navLogoutBtn.classList.remove('hidden');
+                fetchLeagues();
+            }
+        };
 
-            // --- UI Control ---
-            function showStep(stepId) {
-                ['step-1-username', 'step-2-leagues', 'step-3-setup', 'step-4-results'].forEach(id => {
-                    document.getElementById(id).classList.add('hidden');
-                });
-                document.getElementById(stepId).classList.remove('hidden');
+        function handleLogout() {
+            localStorage.removeItem('shell_username');
+            location.reload();
+        }
+
+        dom.logoutBtn.onclick = handleLogout;
+        if (dom.navLogoutBtn) dom.navLogoutBtn.onclick = handleLogout;
+
+        // --- Help System Logic ---
+        function openHelp() {
+            let content = "";
+            
+            // Logic to determine current "Screen" based on visibility
+            if (!dom.step1.classList.contains('hidden')) {
+                content = `
+                    <h4 class="text-xl font-bold text-white mb-2">Step 1: Login</h4>
+                    <p>Enter your <strong>Sleeper Username</strong> to get started.</p>
+                    <p class="mt-2 text-sm text-emerald-300">We'll fetch all your leagues automatically. Make sure the Season year matches your league settings!</p>
+                `;
+            } else if (!dom.step2.classList.contains('hidden')) {
+                content = `
+                    <h4 class="text-xl font-bold text-white mb-2">Step 2: Select League</h4>
+                    <p>Choose which league you want to manage.</p>
+                    <p class="mt-2 text-sm text-emerald-300">Use the toggle at the top right to switch between <strong>Lottery Mode</strong> (for draft simulation) and <strong>Analytics Mode</strong> (for stats).</p>
+                `;
+            } else if (!dom.analyticsDash.classList.contains('hidden')) {
+                content = `
+                    <h4 class="text-xl font-bold text-white mb-2">Analytics Dashboard</h4>
+                    <p>View stats for every team in your league.</p>
+                    <ul class="list-disc list-inside mt-2 text-sm text-emerald-300 space-y-1">
+                        <li><strong>Avg Age:</strong> Average age of players on the roster.</li>
+                        <li><strong>Avg Score:</strong> Weekly fantasy point average.</li>
+                        <li><strong>Roster:</strong> Positional breakdown.</li>
+                    </ul>
+                `;
+            } else if (!dom.setupSec.classList.contains('hidden')) {
+                content = `
+                    <h4 class="text-xl font-bold text-white mb-2">Lottery Setup</h4>
+                    <p>Configure the odds for your draft lottery.</p>
+                    <ul class="list-disc list-inside mt-2 text-sm text-emerald-300 space-y-1">
+                        <li><strong>Preset:</strong> Use 'NBA 2025' for weighted odds or 'Flat' for equal odds.</li>
+                        <li><strong>Total:</strong> Must equal exactly 1000 combinations to run.</li>
+                    </ul>
+                `;
+            } else if (!dom.resultsSec.classList.contains('hidden')) {
+                content = `
+                    <h4 class="text-xl font-bold text-white mb-2">Lottery Results</h4>
+                    <p>It's time to find out who gets the #1 pick!</p>
+                    <p class="mt-2 text-sm text-emerald-300">Click the <strong>Reveal Picks</strong> button to auto-reveal picks 5-14. Then, manually click the top 4 cards for maximum suspense!</p>
+                `;
+            } else {
+                content = "<p>Welcome to ShellYeah! Navigate using the buttons on screen.</p>";
             }
 
-            function showLoading(show) {
-                loadingIndicator.classList.toggle('hidden', !show);
-            }
+            dom.helpContent.innerHTML = content;
+            dom.helpModal.classList.remove('hidden');
+        }
 
-            function showError(message) {
-                errorMessage.textContent = message;
-                errorMessage.classList.remove('hidden');
-                setTimeout(() => {
-                    errorMessage.classList.add('hidden');
-                }, 5000);
-            }
+        function closeHelp() {
+            dom.helpModal.classList.add('hidden');
+        }
 
-            // --- API Calls ---
-            async function fetchApi(endpoint, body) {
-                showLoading(true);
-                try {
-                    const response = await fetch(`${API_URL}${endpoint}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(body)
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (!response.ok) {
-                        throw new Error(data.error || 'Something went wrong');
-                    }
-                    return data;
-                } catch (error) {
-                    showError(error.message);
-                    console.error(error);
-                    return null;
-                } finally {
-                    showLoading(false);
-                }
-            }
-
-            // --- Event Handlers ---
-
-            // Step 1: Find Leagues
-            findLeaguesBtn.addEventListener('click', async () => {
-                const username = document.getElementById('username-input').value;
-                const season = document.getElementById('season-input').value;
-                if (!username) {
-                    showError('Please enter a username.');
-                    return;
-                }
+        // --- Navigation & State Management ---
+        function switchMode(mode) {
+            currentMode = mode;
+            
+            if (mode === 'lottery') {
+                dom.navLottery.classList.replace('text-emerald-200', 'bg-orange-500');
+                dom.navLottery.classList.replace('hover:bg-emerald-800', 'text-white');
+                dom.navLottery.classList.add('shadow-orange-500/50');
                 
-                const leagues = await fetchApi('/get_leagues', { username, season });
-                if (leagues) {
-                    leaguesList.innerHTML = ''; // Clear previous list
-                    if (leagues.length === 0) {
-                        leaguesList.innerHTML = '<p class="text-gray-400">No active NBA leagues found for this user.</p>';
-                    } else {
-                        leagues.forEach(league => {
-                            const btn = document.createElement('button');
-                            btn.className = "w-full text-left bg-gray-700 hover:bg-gray-600 p-4 rounded-lg transition duration-200 flex items-center gap-4";
-                            btn.innerHTML = `
-                                <img src="${league.avatar_url}" alt="League Avatar" class="w-12 h-12 rounded-full">
-                                <div>
-                                    <strong class="text-white">${league.name}</strong>
-                                    <span class="text-sm text-gray-400 block">Status: ${league.status}</span>
-                                </div>
-                            `;
-                            btn.onclick = () => handleSelectLeague(league.league_id);
-                            leaguesList.appendChild(btn);
-                        });
-                    }
-                    showStep('step-2-leagues');
-                }
-            });
+                dom.navAnalytics.classList.replace('bg-orange-500', 'text-emerald-200');
+                dom.navAnalytics.classList.replace('text-white', 'hover:bg-emerald-800');
+                dom.navAnalytics.classList.remove('shadow-orange-500/50');
 
-            // Step 2: Select League
-            async function handleSelectLeague(leagueId) {
-                const data = await fetchApi('/get_lottery_teams', { league_id: leagueId });
+                dom.lotteryCont.classList.remove('hidden');
+                dom.analyticsCont.classList.add('hidden');
+            } else {
+                dom.navAnalytics.classList.replace('text-emerald-200', 'bg-orange-500');
+                dom.navAnalytics.classList.replace('hover:bg-emerald-800', 'text-white');
+                dom.navAnalytics.classList.add('shadow-orange-500/50');
+
+                dom.navLottery.classList.replace('bg-orange-500', 'text-emerald-200');
+                dom.navLottery.classList.replace('text-white', 'hover:bg-emerald-800');
+                dom.navLottery.classList.remove('shadow-orange-500/50');
+
+                dom.lotteryCont.classList.add('hidden');
+                dom.analyticsCont.classList.remove('hidden');
+            }
+
+            // State Persistence Logic
+            if (fetchedLeaguesCache && fetchedLeaguesCache.length > 0) {
+                renderLeaguesList(fetchedLeaguesCache);
+                dom.step1.classList.add('hidden');
+                dom.step2.classList.remove('hidden');
+                
+                dom.setupSec.classList.add('hidden');
+                dom.resultsSec.classList.add('hidden');
+                dom.analyticsDash.classList.add('hidden');
+            } else {
+                dom.step1.classList.remove('hidden');
+                dom.step2.classList.add('hidden');
+            }
+        }
+
+        // --- API Utilities ---
+        function showLoading(show) { dom.loading.classList.toggle('hidden', !show); }
+        function showError(msg) { 
+            dom.error.textContent = "⚠️ " + msg; 
+            dom.error.classList.remove('hidden');
+            setTimeout(() => dom.error.classList.add('hidden'), 5000);
+        }
+        async function fetchApi(ep, body) {
+            showLoading(true);
+            try {
+                const r = await fetch(`${API_URL}${ep}`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+                });
+                const d = await r.json();
+                if (!r.ok) throw new Error(d.error || 'Error');
+                return d;
+            } catch (e) { showError(e.message); return null; } 
+            finally { showLoading(false); }
+        }
+
+        // --- Logic ---
+        async function fetchLeagues() {
+            const username = dom.usernameIn.value;
+            if (!username) return;
+
+            localStorage.setItem('shell_username', username);
+            dom.currentUserSpan.textContent = username;
+            dom.userDisplay.classList.remove('hidden');
+            if (dom.navLogoutBtn) dom.navLogoutBtn.classList.remove('hidden');
+
+            const leagues = await fetchApi('/get_leagues', { username: username, season: dom.seasonIn.value });
+            
+            if (leagues) {
+                fetchedLeaguesCache = leagues;
+                renderLeaguesList(leagues);
+                dom.step1.classList.add('hidden');
+                dom.step2.classList.remove('hidden');
+            }
+        }
+
+        function renderLeaguesList(leagues) {
+            dom.leaguesList.innerHTML = leagues.length ? '' : '<p class="text-emerald-300 italic">No NBA leagues found in the turtle nest.</p>';
+            leagues.forEach(l => {
+                const btn = document.createElement('button');
+                btn.className = "w-full text-left bg-emerald-900/50 hover:bg-emerald-700 p-4 rounded-xl transition mb-2 border-2 border-emerald-600 flex justify-between items-center group";
+                
+                const avatarHtml = l.avatar 
+                    ? `<img src="${l.avatar}" class="w-12 h-12 rounded-full border-2 border-orange-500 object-cover mr-4">` 
+                    : `<div class="w-12 h-12 rounded-full border-2 border-orange-500 bg-emerald-900 flex items-center justify-center text-2xl mr-4">🐢</div>`;
+                
+                btn.innerHTML = `
+                    <div class="flex items-center justify-between w-full">
+                        <div class="flex items-center">
+                            ${avatarHtml}
+                            <strong class="text-white text-lg group-hover:text-orange-300 transition">${l.name}</strong>
+                        </div>
+                        <span class="text-xs bg-emerald-950 px-2 py-1 rounded text-emerald-400 font-mono">${l.status}</span>
+                    </div>
+                `;
+                btn.onclick = () => handleSelectLeague(l.league_id);
+                dom.leaguesList.appendChild(btn);
+            });
+        }
+
+        document.getElementById('find-leagues-btn').onclick = fetchLeagues;
+
+        async function handleSelectLeague(id) {
+            if (currentMode === 'lottery') {
+                const data = await fetchApi('/get_lottery_teams', { league_id: id });
                 if (data && data.teams) {
                     lotteryTeams = data.teams;
-                    
-                    // Dynamically set the odds preset based on league size
-                    const numTeams = lotteryTeams.length;
-                    if (numTeams >= 14) {
-                        oddsPreset.value = 'nba-2025';
-                    } else if (numTeams >= 12) {
-                        oddsPreset.value = 'nba-12-teams';
-                    } else if (numTeams >= 10) {
-                        oddsPreset.value = 'nba-10-teams';
-                    } else if (numTeams >= 8) {
-                        oddsPreset.value = 'nba-8-teams';
-                    } else {
-                        oddsPreset.value = 'flat';
-                    }
-
-                    populateTeamsTable();
-                    updateOdds(); // Update odds based on the dynamically set preset
-                    showStep('step-3-setup');
+                    populateLotteryTable();
+                    updateOdds();
+                    dom.setupSec.classList.remove('hidden');
+                    dom.step2.classList.add('hidden');
+                }
+            } else {
+                const data = await fetchApi('/get_league_analytics', { league_id: id });
+                if (data && data.analytics) {
+                    renderAnalytics(data.analytics);
+                    dom.analyticsDash.classList.remove('hidden');
+                    dom.step2.classList.add('hidden');
                 }
             }
+        }
 
-            // Step 3: Setup & Odds
-            oddsPreset.addEventListener('change', updateOdds);
+        function renderAnalytics(teams) {
+            dom.analyticsTable.innerHTML = '';
+            teams.forEach((t, index) => {
+                const avatarImg = t.avatar ? `<img src="${t.avatar}" class="team-avatar-sm">` : `<div class="team-avatar-sm bg-emerald-700 inline-flex items-center justify-center text-xs">${t.team_name[0]}</div>`;
+                
+                let posHtml = '';
+                ['PG', 'SG', 'SF', 'PF', 'C'].forEach(p => {
+                    if (t.positions[p] > 0) posHtml += `<span class="pos-badge pos-${p}">${p}:${t.positions[p]}</span>`;
+                });
 
-            function populateTeamsTable() {
-                teamsTable.innerHTML = ''; // Clear previous
-                lotteryTeams.forEach(team => {
-                    const row = document.createElement('tr');
-                    let oddsInputHtml;
-                    let percentageDisplayHtml;
-                    let rowClasses = '';
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-emerald-900/50 transition";
+                tr.innerHTML = `
+                    <td class="px-4 py-4 whitespace-nowrap flex items-center">${avatarImg} <span class="font-bold text-white">${t.team_name}</span></td>
+                    <td class="px-4 py-4 whitespace-nowrap font-mono text-emerald-300">${t.wins}-${t.losses}</td>
+                    <td class="px-4 py-4 whitespace-nowrap"><div class="text-sm font-bold text-white">${t.avg_age} <span class="text-xs text-emerald-400 font-normal">yrs</span></div></td>
+                    <td class="px-4 py-4 whitespace-nowrap"><div class="text-sm font-bold text-orange-400">${t.avg_fpts_week} <span class="text-xs text-emerald-400 font-normal">pts</span></div></td>
+                    <td class="px-4 py-4"><div class="flex flex-wrap gap-1">${posHtml}</div></td>
+                `;
+                dom.analyticsTable.appendChild(tr);
+            });
+        }
 
-                    if (team.is_lottery_eligible) {
-                        oddsInputHtml = `<input type="number" data-seed="${team.seed}" class="odds-input w-24 bg-gray-700 text-white p-2 rounded-lg border border-gray-600" value="0">`;
-                        percentageDisplayHtml = `<span class="odds-percentage text-gray-400 ml-2 w-16 text-right"></span>`;
+        dom.oddsPreset.onchange = updateOdds;
+        function populateLotteryTable() {
+            dom.teamsTable.innerHTML = '';
+            lotteryTeams.forEach(t => {
+                const avatarImg = t.avatar ? `<img src="${t.avatar}" class="team-avatar-sm border-emerald-500">` : '';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-4 py-3 font-bold text-emerald-300">#${t.seed}</td>
+                    <td class="px-4 py-3 flex items-center font-semibold">${avatarImg} ${t.team_name}</td>
+                    <td class="px-4 py-3 text-emerald-400 font-mono">${t.wins}-${t.losses}</td>
+                    <td class="px-4 py-3"><input type="number" data-seed="${t.seed}" class="odds-input w-20 bg-emerald-900 text-white p-2 rounded border border-emerald-600 focus:border-orange-500 outline-none text-center font-mono" value="0"></td>
+                `;
+                dom.teamsTable.appendChild(tr);
+            });
+            document.querySelectorAll('.odds-input').forEach(i => i.addEventListener('input', calculateTotalOdds));
+        }
+
+        function updateOdds() {
+            const preset = dom.oddsPreset.value;
+            const inputs = document.querySelectorAll('.odds-input');
+            const totalTeams = lotteryTeams.length;
+            
+            let eligibleCount = 4; // Default
+            if (totalTeams === 14) eligibleCount = 6;
+            else if (totalTeams === 12 || totalTeams === 10) eligibleCount = 4;
+            else if (totalTeams === 8) eligibleCount = 2;
+
+            if (preset === 'flat') {
+                const share = Math.floor(1000 / eligibleCount);
+                inputs.forEach((inp, i) => { 
+                    const seed = i + 1;
+                    if (seed <= eligibleCount) {
+                        inp.value = (i === 0) ? share + (1000 - (share * eligibleCount)) : share;
                     } else {
-                        oddsInputHtml = `<input type="number" data-seed="${team.seed}" class="odds-input w-24 bg-gray-700 text-white p-2 rounded-lg border border-gray-600" value="0" disabled>`;
-                        percentageDisplayHtml = `<span class="odds-percentage text-gray-500 ml-2 w-16 text-right">N/A</span>`;
-                        rowClasses = 'opacity-50'; // Visually distinguish non-lottery teams
+                        inp.value = 0;
                     }
+                });
+            } else {
+                const mapData = ODDS_PRESETS['nba-2025'];
+                const map = mapData[eligibleCount] || mapData['default'];
+                inputs.forEach((inp, i) => {
+                    const seed = i + 1;
+                    inp.value = map[seed] || 0;
+                });
+            }
+            calculateTotalOdds();
+        }
 
-                    row.className = rowClasses;
-                    row.innerHTML = `
-                        <td class="px-4 py-3 whitespace-nowrap text-lg font-bold">${team.seed}</td>
-                        <td class="px-4 py-3 whitespace-nowrap">${team.team_name}</td>
-                        <td class="px-4 py-3 whitespace-nowrap text-gray-400">${team.wins}-${team.losses}</td>
-                        <td class="px-4 py-3 whitespace-nowrap">
-                            <div class="flex items-center">
-                                ${oddsInputHtml}
-                                ${percentageDisplayHtml}
+        function calculateTotalOdds() {
+            let sum = 0;
+            document.querySelectorAll('.odds-input').forEach(i => sum += parseInt(i.value) || 0);
+            dom.oddsCounter.textContent = `Total: ${sum}/1000`;
+            if (sum === 1000) {
+                dom.oddsCounter.className = "text-sm font-bold bg-green-600 px-4 py-2 rounded-lg font-mono text-white border border-green-400 shadow-lg shadow-green-900/50";
+            } else {
+                dom.oddsCounter.className = "text-sm font-bold bg-red-600 px-4 py-2 rounded-lg font-mono text-white border border-red-400";
+            }
+        }
+
+        document.getElementById('run-lottery-btn').onclick = async () => {
+            const oddsMap = {};
+            document.querySelectorAll('.odds-input').forEach(i => oddsMap[i.dataset.seed] = parseInt(i.value)||0);
+            const sum = Object.values(oddsMap).reduce((a,b)=>a+b,0);
+            if (sum !== 1000 && !confirm(`Odds sum to ${sum}, not 1000. Run anyway?`)) return;
+            
+            const data = await fetchApi('/run_lottery', { teams: lotteryTeams, odds: oddsMap });
+            if (data) {
+                finalDraftOrder = data;
+                renderResults();
+                dom.resultsSec.classList.remove('hidden');
+                dom.setupSec.classList.add('hidden');
+            }
+        };
+
+        function renderResults() {
+            dom.resultsGrid.innerHTML = '';
+            dom.revealBtn.classList.remove('hidden');
+            dom.revealBtn.disabled = false;
+            finalDraftOrder.sort((a,b) => a.pick - b.pick);
+            
+            finalDraftOrder.forEach(pick => {
+                const isTop4 = pick.pick <= 4;
+                const avatarHtml = pick.avatar ? `<img src="${pick.avatar}" class="team-avatar">` : `<div class="team-avatar bg-emerald-200 flex items-center justify-center text-2xl font-bold text-emerald-800">${pick.team_name[0]}</div>`;
+                
+                const cardHtml = `
+                    <div class="h-64 card-scene" data-pick-number="${pick.pick}">
+                        <div class="card ${isTop4 ? '' : 'is-flipped'} cursor-pointer">
+                            <!-- FRONT: THE SHELL -->
+                            <div class="card-face card-face-front">
+                                <div class="text-6xl mb-2 drop-shadow-lg">🐢</div>
+                                <span class="text-4xl font-black text-emerald-900 font-mono">#${pick.pick}</span>
+                                <span class="text-xs text-emerald-100 mt-2 font-bold tracking-widest">CLICK TO HATCH</span>
                             </div>
-                        </td>
-                    `;
-                    const input = row.querySelector('.odds-input');
-                    const percentageSpan = row.querySelector('.odds-percentage');
-                    
-                    if (team.is_lottery_eligible) {
-                        input.addEventListener('input', (e) => {
-                            const odds = parseInt(e.target.value) || 0;
-                            const percentage = (odds / 10).toFixed(1);
-                            percentageSpan.textContent = `${percentage}%`;
-                        });
-                    }
-                    teamsTable.appendChild(row);
-                });
-            }
+                            <!-- BACK: THE REVEAL -->
+                            <div class="card-face card-face-back">
+                                <span class="text-xs font-black text-orange-600 mb-2 tracking-widest">PICK #${pick.pick}</span>
+                                ${avatarHtml}
+                                <span class="text-lg font-bold text-center px-2 leading-tight text-gray-800 brand-font">${pick.team_name}</span>
+                                <span class="text-xs text-gray-500 mt-2 font-mono">Seed: ${pick.original_seed} • Odds: ${pick.final_odds}/1000</span>
+                            </div>
+                        </div>
+                    </div>`;
+                dom.resultsGrid.innerHTML += cardHtml;
+            });
 
-            function updateOdds() {
-                const preset = oddsPreset.value;
-                const rows = teamsTable.querySelectorAll('tr');
-                let totalOdds = 0;
-                
-                const lotteryEligibleTeams = lotteryTeams.filter(team => team.is_lottery_eligible);
-                const numLotteryTeams = lotteryEligibleTeams.length;
-
-                if (preset === 'flat') {
-                    const oddsPerTeam = Math.floor(1000 / numLotteryTeams);
-                    lotteryEligibleTeams.forEach((team, index) => {
-                        const row = teamsTable.querySelector(`tr:nth-child(${team.seed})`);
-                        if (row) {
-                            const input = row.querySelector('.odds-input');
-                            const percentageSpan = row.querySelector('.odds-percentage');
-                            input.value = oddsPerTeam;
-                            totalOdds += oddsPerTeam;
-                            const percentage = (oddsPerTeam / 10).toFixed(1);
-                            percentageSpan.textContent = `${percentage}%`;
-                        }
-                    });
-                    // Distribute remaining to first lottery team
-                    if (lotteryEligibleTeams.length > 0) {
-                        const firstLotteryTeam = lotteryEligibleTeams[0];
-                        const firstRow = teamsTable.querySelector(`tr:nth-child(${firstLotteryTeam.seed})`);
-                        const input = firstRow.querySelector('.odds-input');
-                        const percentageSpan = firstRow.querySelector('.odds-percentage');
-                        const remaining = 1000 - totalOdds;
-                        input.value = parseInt(input.value) + remaining;
-                        const percentage = (parseInt(input.value) / 10).toFixed(1);
-                        percentageSpan.textContent = `${percentage}%`;
-                    }
-                } else { // 'nba-2025' or other NBA-like presets
-                    const oddsMap = ODDS_PRESETS[preset];
-                    if (!oddsMap) {
-                        showError('Selected odds preset is not available.');
-                        return;
-                    }
-                    lotteryTeams.forEach(team => {
-                        const row = teamsTable.querySelector(`tr:nth-child(${team.seed})`);
-                        if (row) {
-                            const input = row.querySelector('.odds-input');
-                            const percentageSpan = row.querySelector('.odds-percentage');
-                            let odds = 0;
-                            if (team.is_lottery_eligible) {
-                                odds = oddsMap[team.seed] || 0;
+            document.querySelectorAll('.card-scene').forEach(scene => {
+                if (parseInt(scene.dataset.pickNumber) <= 4) {
+                    scene.onclick = () => {
+                        const card = scene.querySelector('.card');
+                        if (!card.classList.contains('is-flipped')) {
+                            card.classList.add('is-flipped');
+                            if (scene.dataset.pickNumber === "1") {
+                                confetti({ 
+                                    particleCount: 200, 
+                                    spread: 100, 
+                                    origin: { y: 0.6 }, 
+                                    colors: ['#10b981', '#f97316', '#ffffff'] 
+                                });
                             }
-                            input.value = odds;
-                            const percentage = (odds / 10).toFixed(1);
-                            percentageSpan.textContent = team.is_lottery_eligible ? `${percentage}%` : 'N/A';
                         }
-                    });
+                    };
                 }
+            });
+        }
+
+        dom.revealBtn.onclick = async () => {
+            dom.revealBtn.disabled = true;
+            const picks = finalDraftOrder.filter(p => p.pick > 4).sort((a,b) => b.pick - a.pick);
+            for (const p of picks) {
+                const card = document.querySelector(`.card-scene[data-pick-number="${p.pick}"] .card`);
+                if (card) { card.classList.add('is-flipped'); await new Promise(r => setTimeout(r, 300)); }
             }
+            dom.revealBtn.classList.add('hidden');
+        };
 
-            // Step 3: Run Lottery
-            runLotteryBtn.addEventListener('click', async () => {
-                const oddsMap = {};
-                document.querySelectorAll('.odds-input').forEach(input => {
-                    oddsMap[input.dataset.seed] = parseInt(input.value) || 0;
-                });
-                
-                const totalOdds = Object.values(oddsMap).reduce((sum, v) => sum + v, 0);
-                if (totalOdds > 1000) {
-                    showError(`Odds sum to ${totalOdds}, but cannot exceed 1000. Please adjust.`);
-                    return;
-                }
-
-                const data = await fetchApi('/run_lottery', { teams: lotteryTeams, odds: oddsMap });
-                if (data) {
-                    finalDraftOrder = data;
-                    renderResultsCards();
-                    showStep('step-4-results');
-                }
-            });
-
-            // Step 4: Results
-            function renderResultsCards() {
-                resultsGrid.innerHTML = '';
-                revealBtn.classList.remove('hidden'); // Show reveal button
-                revealBtn.disabled = false;
-                document.getElementById('reveal-instructions').textContent = 'Click the "Reveal Picks" button to start. The top 4 picks must be revealed manually!';
-                
-                // Sort by pick number to display
-                finalDraftOrder.sort((a, b) => a.pick - b.pick);
-
-                finalDraftOrder.forEach(pick => {
-                    const isTop4 = pick.pick <= 4;
-                    
-                                    const cardHtml = `
-                                        <div class="h-48 card-scene" data-pick-number="${pick.pick}">
-                                            <div class="card">
-                                                <!-- FRONT (Hidden) -->
-                                                <div class="card-face card-face-front">
-                                                    <span class="text-3xl font-black">#${pick.pick}</span>
-                                                    <span class="text-sm text-gray-300 mt-2">(Click to Reveal)</span>
-                                                </div>
-                                                <!-- BACK (Visible) -->
-                                                <div class="card-face card-face-back">
-                                                    <span class="text-lg font-bold text-blue-300">PICK #${pick.pick}</span>
-                                                    <span class="text-xl font-bold text-center mt-2 px-2">${pick.team_name}</span>
-                                                    <span class="text-sm text-gray-400 mt-1">(Seed: ${pick.original_seed})</span>
-                                                    ${getJumpHtml(pick)}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    `;                    resultsGrid.innerHTML += cardHtml;
-                });
-
-                // No longer need individual click listeners for top 4 cards as all are revealed automatically
-                // document.querySelectorAll('.card-scene[data-pick-number]').forEach(scene => {
-                //     const pickNum = parseInt(scene.dataset.pickNumber);
-                //     if (pickNum <= 4) {
-                //         scene.addEventListener('click', () => {
-                //             scene.querySelector('.card').classList.add('is-flipped');
-                //         });
-                //     }
-                // });
+        document.getElementById('start-over-btn').onclick = () => {
+            switchMode('lottery');
+            if (fetchedLeaguesCache) {
+                renderLeaguesList(fetchedLeaguesCache);
+                dom.step1.classList.add('hidden');
+                dom.step2.classList.remove('hidden');
+            } else {
+                dom.step1.classList.remove('hidden');
+                dom.step2.classList.add('hidden');
             }
-            
-            function getJumpHtml(pick) {
-                const jump = pick.original_seed - pick.pick;
-                if (jump > 0) {
-                    return `<span class="mt-2 text-xs font-medium bg-green-700 text-green-100 px-2 py-0.5 rounded-full">JUMPED ${jump} SPOTS</span>`;
-                }
-                if (jump < 0) {
-                    return `<span class="mt-2 text-xs font-medium bg-red-700 text-red-100 px-2 py-0.5 rounded-full">FELL ${Math.abs(jump)} SPOTS</span>`;
-                }
-                return `<span class="mt-2 text-xs font-medium bg-gray-600 text-gray-200 px-2 py-0.5 rounded-full">NO CHANGE</span>`;
-            }
-            
-            // Animated reveal for non-top-4 picks
-                    revealBtn.addEventListener('click', async () => {
-                        console.log("finalDraftOrder:", finalDraftOrder);
-                        revealBtn.disabled = true;
-                        revealBtn.classList.add('hidden');
-                        document.getElementById('reveal-instructions').textContent = 'The Top 4 picks are sealed. Click the cards to reveal the winners!';
-                        
-                                    const picksToReveal = finalDraftOrder.sort((a, b) => b.pick - a.pick); // Sort all picks from highest to lowest
-                                    
-                                    for (const pick of picksToReveal) {
-                                        const card = document.querySelector(`.card-scene[data-pick-number="${pick.pick}"] .card`);
-                                        if (card) {
-                                            card.classList.add('is-flipped');
-                                            await new Promise(res => setTimeout(res, 3000)); // Pause for 3 seconds
-                                        }
-                                    }                    });            
-            // Start Over
-            startOverBtn.addEventListener('click', () => {
-                lotteryTeams = [];
-                finalDraftOrder = [];
-                document.getElementById('username-input').value = '';
-                showStep('step-1-username');
-            });
+        };
 
-            // --- Help Modal ---
-            const helpBtn = document.getElementById('help-btn');
-            const helpModal = document.getElementById('help-modal');
-            const closeHelpBtn = document.getElementById('close-help-btn');
-
-            helpBtn.addEventListener('click', () => {
-                console.log("Help button clicked");
-                helpModal.classList.remove('hidden');
-            });
-
-            closeHelpBtn.addEventListener('click', () => {
-                console.log("Close help button clicked");
-                helpModal.classList.add('hidden');
-            });
-
-            // Close modal if clicking outside of it
-            window.addEventListener('click', (event) => {
-                if (event.target === helpModal) {
-                    helpModal.classList.add('hidden');
-                }
-            });
-        });
+        switchMode('lottery');
     </script>
-
-    <!-- Help Button -->
-    <button id="help-btn" class="fixed bottom-4 right-4 bg-blue-600 hover:bg-blue-700 text-white font-bold w-12 h-12 rounded-full flex items-center justify-center shadow-lg">
-        <span class="text-2xl">?</span>
-    </button>
-
-    <!-- Help Modal -->
-    <div id="help-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-        <div class="bg-gray-800 p-6 rounded-lg shadow-xl max-w-lg w-full">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-2xl font-bold">How It Works</h2>
-                <button id="close-help-btn" class="text-gray-400 hover:text-white">&times;</button>
-            </div>
-            <div class="text-gray-300 space-y-4">
-                <p><strong>Step 1: Find Your Leagues</strong><br>Enter your Sleeper username and the current season (e.g., 2025) to find your leagues. The app will look for leagues from the previous season to determine standings.</p>
-                <p><strong>Step 2: Select Your League</strong><br>Choose the league you want to run a lottery for. The app will automatically fetch the previous season's standings to identify lottery-eligible teams.</p>
-                <p><strong>Step 3: Confirm Teams & Odds</strong><br>Review the teams and their lottery odds. You can use the provided presets or manually adjust the odds for each team. The total odds must not exceed 1000.</p>
-                <p><strong>Step 4: Run The Lottery!</strong><br>Once you're ready, click the "Run The Lottery!" button to see the results. The top 4 picks are revealed manually, just like the real NBA draft lottery.</p>
-            </div>
-        </div>
-    </div>
 </body>
 </html>

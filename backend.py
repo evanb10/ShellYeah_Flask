@@ -1,18 +1,41 @@
 import requests
 import random
-from itertools import combinations
+from typing import List, Dict, Any, Optional
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)  # Allow cross-origin requests
+CORS(app)
 
 SLEEPER_API_BASE = "https://api.sleeper.app/v1"
+SLEEPER_AVATAR_BASE = "https://sleepercdn.com/avatars/thumbs"
+
+# In-memory cache for the heavy players DB
+PLAYERS_CACHE = {}
 
 # --- API Helper Functions ---
 
-def get_user(username):
-    """Gets a user's details by username."""
+def get_all_players() -> Dict[str, Any]:
+    """
+    Fetches all NBA players from Sleeper. 
+    Cached in memory because the payload is large (~5MB).
+    """
+    global PLAYERS_CACHE
+    if PLAYERS_CACHE:
+        return PLAYERS_CACHE
+    
+    try:
+        print("Fetching all players from Sleeper (this happens once)...")
+        response = requests.get(f"{SLEEPER_API_BASE}/players/nba")
+        response.raise_for_status()
+        PLAYERS_CACHE = response.json()
+        print(f"Loaded {len(PLAYERS_CACHE)} players.")
+        return PLAYERS_CACHE
+    except requests.exceptions.RequestException as e:
+        print(f"Error getting players: {e}")
+        return {}
+
+def get_user(username: str) -> Optional[Dict[str, Any]]:
     try:
         response = requests.get(f"{SLEEPER_API_BASE}/user/{username}")
         response.raise_for_status()
@@ -21,8 +44,7 @@ def get_user(username):
         print(f"Error getting user: {e}")
         return None
 
-def get_leagues_for_user(user_id, season):
-    """Gets all of a user's leagues for a specific season."""
+def get_leagues_for_user(user_id: str, season: str) -> List[Dict[str, Any]]:
     try:
         response = requests.get(f"{SLEEPER_API_BASE}/user/{user_id}/leagues/nba/{season}")
         response.raise_for_status()
@@ -31,8 +53,7 @@ def get_leagues_for_user(user_id, season):
         print(f"Error getting leagues: {e}")
         return []
 
-def get_league_details(league_id):
-    """Gets settings and details for a specific league."""
+def get_league_details(league_id: str) -> Optional[Dict[str, Any]]:
     try:
         response = requests.get(f"{SLEEPER_API_BASE}/league/{league_id}")
         response.raise_for_status()
@@ -41,8 +62,7 @@ def get_league_details(league_id):
         print(f"Error getting league details: {e}")
         return None
 
-def get_rosters(league_id):
-    """Gets all rosters and their records for a league."""
+def get_rosters(league_id: str) -> List[Dict[str, Any]]:
     try:
         response = requests.get(f"{SLEEPER_API_BASE}/league/{league_id}/rosters")
         response.raise_for_status()
@@ -51,8 +71,7 @@ def get_rosters(league_id):
         print(f"Error getting rosters: {e}")
         return []
 
-def get_users_in_league(league_id):
-    """Gets all users (for team names) in a league."""
+def get_users_in_league(league_id: str) -> List[Dict[str, Any]]:
     try:
         response = requests.get(f"{SLEEPER_API_BASE}/league/{league_id}/users")
         response.raise_for_status()
@@ -63,100 +82,133 @@ def get_users_in_league(league_id):
 
 # --- Lottery Logic ---
 
-def perform_nba_lottery(all_teams_data, odds_map):
-    """
-    Performs the 4-pick lottery draw.
-    all_teams_data: A list of dicts, each representing a team with 'seed', 'team_name', 'is_lottery_eligible'
-    odds_map: A dict mapping seed (str) to number of combinations (int) for lottery-eligible teams
-    """
-    
-    # 1. Create the "hat" with 1000 combinations assigned to lottery-eligible teams
+def perform_nba_lottery(teams_by_seed: Dict[int, Dict[str, Any]], odds_map: Dict[str, int]) -> List[Dict[str, Any]]:
     hat = []
-    lottery_eligible_teams_map = {team['seed']: team['team_name'] for team in all_teams_data if team['is_lottery_eligible']}
-
     for seed_str, num_combos in odds_map.items():
         seed_int = int(seed_str)
-        if seed_int in lottery_eligible_teams_map:
-            team_name = lottery_eligible_teams_map[seed_int]
-            hat.extend([{"seed": seed_int, "team_name": team_name}] * num_combos)
+        if seed_int in teams_by_seed:
+            team_data = teams_by_seed[seed_int]
+            hat.extend([{"seed": seed_int, "team_data": team_data}] * num_combos)
     
-    # Fill any remaining spots if odds don't sum to 1000 (e.g., fewer lottery teams than 14)
     if len(hat) < 1000:
-        hat.extend([{"seed": -1, "team_name": "Re-draw"}] * (1000 - len(hat)))
+        hat.extend([{"seed": -1, "team_data": None}] * (1000 - len(hat)))
     
     random.shuffle(hat)
 
-    # 2. Draw the top 4 picks
     winners = []
-    drawn_team_names = set()
+    drawn_team_ids = set()
 
     while len(winners) < 4:
         potential_winner = random.choice(hat)
-        
-        if potential_winner["seed"] != -1 and potential_winner["team_name"] not in drawn_team_names:
-            winners.append(potential_winner)
-            drawn_team_names.add(potential_winner["team_name"])
+        if potential_winner["seed"] != -1:
+            team_name = potential_winner["team_data"]["team_name"]
+            if team_name not in drawn_team_ids:
+                winners.append(potential_winner)
+                drawn_team_ids.add(team_name)
 
-    # 3. Create the final draft order
     final_order = []
-    
-    # Add the top 4 picks
     for i, winner in enumerate(winners):
+        original_seed = winner["seed"]
+        final_odds = odds_map.get(str(original_seed), 0)
         final_order.append({
             "pick": i + 1,
-            "team_name": winner["team_name"],
-            "original_seed": winner["seed"]
+            "team_name": winner["team_data"]["team_name"],
+            "avatar": winner["team_data"].get("avatar"),
+            "original_seed": original_seed,
+            "final_odds": final_odds
         })
 
-    # Determine which lottery-eligible teams did NOT win a top 4 pick
-    non_winning_lottery_teams = [
-        team for team in all_teams_data 
-        if team['is_lottery_eligible'] and team['team_name'] not in drawn_team_names
-    ]
-    # Sort them by their original seed (worst record gets higher pick among these)
-    non_winning_lottery_teams.sort(key=lambda x: x["seed"])
-
-    # Add the non-winning lottery teams after the top 4
-    for team in non_winning_lottery_teams:
+    remaining_teams = []
+    for seed, team_data in teams_by_seed.items():
+        if team_data["team_name"] not in drawn_team_ids:
+            remaining_teams.append({"seed": seed, "team_data": team_data})
+            
+    remaining_teams.sort(key=lambda x: x["seed"])
+    
+    for i, item in enumerate(remaining_teams):
+        original_seed = item["seed"]
+        final_odds = odds_map.get(str(original_seed), 0)
         final_order.append({
-            "pick": len(final_order) + 1,
-            "team_name": team["team_name"],
-            "original_seed": team["seed"]
-        })
-
-    # Add the non-lottery eligible teams in their original seeded order
-    non_lottery_teams = [
-        team for team in all_teams_data 
-        if not team['is_lottery_eligible']
-    ]
-    # These teams maintain their original seed order
-    non_lottery_teams.sort(key=lambda x: x["seed"])
-
-    for team in non_lottery_teams:
-        final_order.append({
-            "pick": len(final_order) + 1,
-            "team_name": team["team_name"],
-            "original_seed": team["seed"]
+            "pick": 5 + i,
+            "team_name": item["team_data"]["team_name"],
+            "avatar": item["team_data"].get("avatar"),
+            "original_seed": original_seed,
+            "final_odds": final_odds
         })
 
     return final_order
+
+# --- Analytics Logic ---
+
+def calculate_team_analytics(roster: Dict, user_map: Dict, all_players: Dict) -> Dict:
+    """Calculates detailed stats for a single roster."""
+    
+    owner_id = roster['owner_id']
+    user_info = user_map.get(owner_id, {"name": f"Team {owner_id}", "avatar": None})
+    
+    # 1. Basic Team Info
+    wins = roster['settings']['wins']
+    losses = roster['settings']['losses']
+    ties = roster['settings'].get('ties', 0)
+    total_games = wins + losses + ties
+    total_fpts = float(roster['settings'].get('fpts', 0)) + (float(roster['settings'].get('fpts_decimal', 0)) / 100)
+    
+    avg_fpts_week = total_fpts / total_games if total_games > 0 else 0
+    
+    # 2. Player Analysis
+    player_ids = roster.get('players', [])
+    ages = []
+    positions = {"PG": 0, "SG": 0, "SF": 0, "PF": 0, "C": 0, "G": 0, "F": 0}
+    
+    for pid in player_ids:
+        if pid in all_players:
+            p_data = all_players[pid]
+            
+            # Age
+            if p_data.get('age'):
+                ages.append(p_data['age'])
+            
+            # Positions (Sleeper uses 'fantasy_positions' list, e.g. ["PG", "SG"])
+            p_positions = p_data.get('fantasy_positions', [])
+            if p_positions:
+                # We count the primary position (first in list) or all? 
+                # Let's count all valid occurrences for coverage
+                for pos in p_positions:
+                    if pos in positions:
+                        positions[pos] += 1
+
+    avg_age = sum(ages) / len(ages) if ages else 0
+    
+    # "Avg Fantasy PPG / Player" proxy:
+    # Since we don't have individual stats easily, we calculate:
+    # "Average contribution per roster spot" = Team Avg Weekly Score / Roster Size
+    roster_size = len(player_ids)
+    avg_ppg_per_player_proxy = avg_fpts_week / roster_size if roster_size > 0 else 0
+
+    return {
+        "team_name": user_info["name"],
+        "avatar": user_info["avatar"],
+        "wins": wins,
+        "losses": losses,
+        "avg_age": round(avg_age, 1),
+        "positions": positions,
+        "avg_fpts_week": round(avg_fpts_week, 1),
+        "avg_ppg_player": round(avg_ppg_per_player_proxy, 1),
+        "total_fpts": round(total_fpts, 1),
+        "roster_size": roster_size
+    }
 
 # --- Flask Routes ---
 
 @app.route('/')
 def serve_index():
-    """Serves the main HTML file."""
     return send_from_directory('.', 'index.html')
 
 @app.route('/get_leagues', methods=['POST'])
 def handle_get_leagues():
-    """
-    Endpoint to get a user's leagues.
-    Expects JSON: {"username": "...", "season": "2025"}
-    """
     data = request.json
     username = data.get('username')
-    season = data.get('season', '2025') # Default to 2025
+    season = data.get('season', '2025')
 
     if not username:
         return jsonify({"error": "Username is required"}), 400
@@ -166,381 +218,164 @@ def handle_get_leagues():
         return jsonify({"error": "User not found"}), 404
 
     leagues = get_leagues_for_user(user['user_id'], season)
-    # Filter for NBA leagues and return relevant info
-    nba_leagues = []                                                                                                                                
-    for lg in leagues:                                                                                                                              
-        if lg['sport'] == 'nba':                                                                                                                    
-            avatar_id = lg.get('avatar')                                                                                                            
-            avatar_url = f"https://sleepercdn.com/avatars/{avatar_id}" if avatar_id else "https://sleepercdn.com/images/v2/icons/league_avatar.png" 
-            nba_leagues.append({                                                                                                                    
-                "league_id": lg['league_id'],                                                                                                       
-                "name": lg['name'],                                                                                                                 
-                "status": lg['status'],                                                                                                             
-                "avatar_url": avatar_url                                                                                                            
-            })                
+    nba_leagues = [
+        {
+            "league_id": lg['league_id'], 
+            "name": lg['name'], 
+            "status": lg['status'],
+            "avatar": f"{SLEEPER_AVATAR_BASE}/{lg['avatar']}" if lg.get('avatar') else None
+        }
+        for lg in leagues if lg['sport'] == 'nba'
+    ]
     return jsonify(nba_leagues)
-
 
 @app.route('/get_lottery_teams', methods=['POST'])
 def handle_get_lottery_teams():
-    """
-    Endpoint to get the lottery-eligible teams from a league's previous season.
-    Expects JSON: {"league_id": "..."}
-    """
     data = request.json
     current_league_id = data.get('league_id')
     if not current_league_id:
         return jsonify({"error": "League ID is required"}), 400
 
-    # 1. Get current league to find previous league ID
+    # Logic: Get Previous Season -> Get Teams -> Sort by Record
+    # REQUIREMENT: The Lottery Simulator must uses the PREVIOUS season's data.
     current_league = get_league_details(current_league_id)
     if not current_league:
-        return jsonify({"error": "Could not fetch current league details"}), 404
+        return jsonify({"error": "Could not fetch current league"}), 404
     
     prev_league_id = current_league.get('previous_league_id')
     if not prev_league_id:
-        return jsonify({"error": "This league does not have a linked previous season."}), 404
+        return jsonify({"error": "No previous season found linked to this league."}), 404
         
-    # 2. Get settings (playoff teams) and users (team names) from *previous* league
     prev_league_details = get_league_details(prev_league_id)
-    if not prev_league_details:
-        return jsonify({"error": "Could not fetch previous league details"}), 404
-        
-    # Get number of playoff teams. Default to 6 if not set.
-    playoff_spots = prev_league_details.get('settings', {}).get('playoff_teams', 6)
-    total_teams = prev_league_details.get('total_rosters', 12)
-    num_lottery_teams = total_teams - playoff_spots
-
-    # 3. Get user map for team names
+    
     users = get_users_in_league(prev_league_id)
     user_map = {}
     for user in users:
-        team_name = user.get('metadata', {}).get('team_name') or user.get('display_name')
-        user_map[user['user_id']] = team_name
+        display_name = user.get('metadata', {}).get('team_name') or user.get('display_name')
+        avatar_id = user.get('avatar')
+        user_map[user['user_id']] = {
+            "name": display_name,
+            "avatar": f"{SLEEPER_AVATAR_BASE}/{avatar_id}" if avatar_id else None
+        }
 
-    # 4. Get rosters and sort them by standings
     rosters = get_rosters(prev_league_id)
-    if not rosters:
-        return jsonify({"error": "Could not fetch previous league rosters"}), 404
-
-    # Sort by wins (fewest first), then by points for (fewest first as tiebreaker)
-    # This determines the regular season standings for non-playoff teams.
-    # Note: Sleeper's `pts` is `points for`.
-    def get_sort_key(roster):
-        wins = roster['settings']['wins']
-        # Use a high number for points if 'pts' is missing
-        pts = float(roster['settings'].get('pts', 99999)) 
-        return (wins, pts)
-
-    rosters.sort(key=get_sort_key)
     
-    # 5. Populate all teams data, marking lottery eligibility
-    all_teams_data = []
+    # REQUIREMENT: "Random drawing decides who picks first between teams with same record"
+    # We shuffle first to randomize ties, then sort by wins to establish the record-based order.
+    random.shuffle(rosters)
+    rosters.sort(key=lambda r: r['settings']['wins'])
+    
+    lottery_teams_data = []
     for i, roster in enumerate(rosters):
-        owner_id = roster['owner_id']
-        team_name = user_map.get(owner_id, f"Team {owner_id}")
-        
-        is_lottery_eligible = (i < num_lottery_teams)
-        
-        all_teams_data.append({
-            "seed": i + 1, # Seed 1 is the worst team
-            "team_name": team_name,
+        user_info = user_map.get(roster['owner_id'], {"name": f"Team {roster['owner_id']}", "avatar": None})
+        lottery_teams_data.append({
+            "seed": i + 1,
+            "team_name": user_info["name"],
+            "avatar": user_info["avatar"],
             "wins": roster['settings']['wins'],
-            "losses": roster['settings']['losses'],
-            "pts": roster['settings'].get('pts', 'N/A'),
-            "is_lottery_eligible": is_lottery_eligible
+            "losses": roster['settings']['losses']
         })
 
-    if not all_teams_data:
-        return jsonify({"error": "No teams found for the previous season."}), 404
+    return jsonify({"teams": lottery_teams_data})
 
-    return jsonify({"teams": all_teams_data})
-
-
-import requests
-import random
-from itertools import combinations
-from flask import Flask, jsonify, request, send_from_directory
-from flask_cors import CORS
-
-app = Flask(__name__)
-CORS(app)  # Allow cross-origin requests
-
-SLEEPER_API_BASE = "https://api.sleeper.app/v1"
-
-# --- API Helper Functions ---
-
-def get_user(username):
-    """Gets a user's details by username."""
-    try:
-        response = requests.get(f"{SLEEPER_API_BASE}/user/{username}")
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"Error getting user: {e}")
-        return None
-
-def get_leagues_for_user(user_id, season):
-    """Gets all of a user's leagues for a specific season."""
-    try:
-        response = requests.get(f"{SLEEPER_API_BASE}/user/{user_id}/leagues/nba/{season}")
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"Error getting leagues: {e}")
-        return []
-
-def get_league_details(league_id):
-    """Gets settings and details for a specific league."""
-    try:
-        response = requests.get(f"{SLEEPER_API_BASE}/league/{league_id}")
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"Error getting league details: {e}")
-        return None
-
-def get_rosters(league_id):
-    """Gets all rosters and their records for a league."""
-    try:
-        response = requests.get(f"{SLEEPER_API_BASE}/league/{league_id}/rosters")
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"Error getting rosters: {e}")
-        return []
-
-def get_users_in_league(league_id):
-    """Gets all users (for team names) in a league."""
-    try:
-        response = requests.get(f"{SLEEPER_API_BASE}/league/{league_id}/users")
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"Error getting users in league: {e}")
-        return []
-
-# --- Lottery Logic ---
-
-def perform_nba_lottery(all_teams_data, odds_map):
+@app.route('/get_league_analytics', methods=['POST'])
+def handle_get_analytics():
     """
-    Performs the 4-pick lottery draw.
-    all_teams_data: A list of dicts, each representing a team with 'seed', 'team_name', 'is_lottery_eligible'
-    odds_map: A dict mapping seed (str) to number of combinations (int) for lottery-eligible teams
-    """
-    
-    # 1. Create the "hat" with 1000 combinations assigned to lottery-eligible teams
-    hat = []
-    lottery_eligible_teams_map = {team['seed']: team['team_name'] for team in all_teams_data if team['is_lottery_eligible']}
-
-    for seed_str, num_combos in odds_map.items():
-        seed_int = int(seed_str)
-        if seed_int in lottery_eligible_teams_map:
-            team_name = lottery_eligible_teams_map[seed_int]
-            hat.extend([{"seed": seed_int, "team_name": team_name}] * num_combos)
-    
-    # Fill any remaining spots if odds don't sum to 1000 (e.g., fewer lottery teams than 14)
-    if len(hat) < 1000:
-        hat.extend([{"seed": -1, "team_name": "Re-draw"}] * (1000 - len(hat)))
-    
-    random.shuffle(hat)
-
-    # 2. Draw the top 4 picks
-    winners = []
-    drawn_team_names = set()
-
-    while len(winners) < 4:
-        potential_winner = random.choice(hat)
-        
-        if potential_winner["seed"] != -1 and potential_winner["team_name"] not in drawn_team_names:
-            winners.append(potential_winner)
-            drawn_team_names.add(potential_winner["team_name"])
-
-    # 3. Create the final draft order
-    final_order = []
-    
-    # Add the top 4 picks
-    for i, winner in enumerate(winners):
-        final_order.append({
-            "pick": i + 1,
-            "team_name": winner["team_name"],
-            "original_seed": winner["seed"]
-        })
-
-    # Determine which lottery-eligible teams did NOT win a top 4 pick
-    non_winning_lottery_teams = [
-        team for team in all_teams_data 
-        if team['is_lottery_eligible'] and team['team_name'] not in drawn_team_names
-    ]
-    # Sort them by their original seed (worst record gets higher pick among these)
-    non_winning_lottery_teams.sort(key=lambda x: x["seed"])
-
-    # Add the non-winning lottery teams after the top 4
-    for team in non_winning_lottery_teams:
-        final_order.append({
-            "pick": len(final_order) + 1,
-            "team_name": team["team_name"],
-            "original_seed": team["seed"]
-        })
-
-    # Add the non-lottery eligible teams in their original seeded order
-    non_lottery_teams = [
-        team for team in all_teams_data 
-        if not team['is_lottery_eligible']
-    ]
-    # These teams maintain their original seed order
-    non_lottery_teams.sort(key=lambda x: x["seed"])
-
-    for team in non_lottery_teams:
-        final_order.append({
-            "pick": len(final_order) + 1,
-            "team_name": team["team_name"],
-            "original_seed": team["seed"]
-        })
-
-    return final_order
-
-# --- Flask Routes ---
-
-@app.route('/')
-def serve_index():
-    """Serves the main HTML file."""
-    return send_from_directory('.', 'index.html')
-
-@app.route('/get_leagues', methods=['POST'])
-def handle_get_leagues():
-    """
-    Endpoint to get a user's leagues.
-    Expects JSON: {"username": "...", "season": "2025"}
+    New Endpoint: Calculates analytics for ALL teams in the CURRENT selected league.
+    REQUIREMENT: Analytics must use the CURRENT season's data.
     """
     data = request.json
-    username = data.get('username')
-    season = data.get('season', '2025') # Default to 2025
-
-    if not username:
-        return jsonify({"error": "Username is required"}), 400
-
-    user = get_user(username)
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
-    leagues = get_leagues_for_user(user['user_id'], season)
-    # Filter for NBA leagues and return relevant info
-    nba_leagues = []                                                                                                                                
-    for lg in leagues:                                                                                                                              
-        if lg['sport'] == 'nba':                                                                                                                    
-            avatar_id = lg.get('avatar')                                                                                                            
-            avatar_url = f"https://sleepercdn.com/avatars/{avatar_id}" if avatar_id else "https://sleepercdn.com/images/v2/icons/league_avatar.png" 
-            nba_leagues.append({                                                                                                                    
-                "league_id": lg['league_id'],                                                                                                       
-                "name": lg['name'],                                                                                                                 
-                "status": lg['status'],                                                                                                             
-                "avatar_url": avatar_url                                                                                                            
-            })                
-    return jsonify(nba_leagues)
-
-
-@app.route('/get_lottery_teams', methods=['POST'])
-def handle_get_lottery_teams():
-    """
-    Endpoint to get the lottery-eligible teams from a league's previous season.
-    Expects JSON: {"league_id": "..."}
-    """
-    data = request.json
-    current_league_id = data.get('league_id')
-    if not current_league_id:
+    league_id = data.get('league_id')
+    if not league_id:
         return jsonify({"error": "League ID is required"}), 400
 
-    # 1. Get current league to find previous league ID
-    current_league = get_league_details(current_league_id)
-    if not current_league:
-        return jsonify({"error": "Could not fetch current league details"}), 404
-    
-    prev_league_id = current_league.get('previous_league_id')
-    if not prev_league_id:
-        return jsonify({"error": "This league does not have a linked previous season."}), 404
-        
-    # 2. Get settings (playoff teams) and users (team names) from *previous* league
-    prev_league_details = get_league_details(prev_league_id)
-    if not prev_league_details:
-        return jsonify({"error": "Could not fetch previous league details"}), 404
-        
-    # Get number of playoff teams. Default to 6 if not set.
-    playoff_spots = prev_league_details.get('settings', {}).get('playoff_teams', 6)
-    total_teams = prev_league_details.get('total_rosters', 12)
-    num_lottery_teams = total_teams - playoff_spots
+    # 1. Ensure players are loaded (Lazy Load)
+    all_players = get_all_players()
+    if not all_players:
+        return jsonify({"error": "Could not load player database."}), 500
 
-    # 3. Get user map for team names
-    users = get_users_in_league(prev_league_id)
+    # 2. Get League Context
+    rosters = get_rosters(league_id)
+    users = get_users_in_league(league_id)
+    
+    # Map Users
     user_map = {}
     for user in users:
-        team_name = user.get('metadata', {}).get('team_name') or user.get('display_name')
-        user_map[user['user_id']] = team_name
+        display_name = user.get('metadata', {}).get('team_name') or user.get('display_name')
+        avatar_id = user.get('avatar')
+        user_map[user['user_id']] = {
+            "name": display_name,
+            "avatar": f"{SLEEPER_AVATAR_BASE}/{avatar_id}" if avatar_id else None
+        }
 
-    # 4. Get rosters and sort them by standings
-    rosters = get_rosters(prev_league_id)
-    if not rosters:
-        return jsonify({"error": "Could not fetch previous league rosters"}), 404
-
-    # Sort by wins (fewest first), then by points for (fewest first as tiebreaker)
-    # This determines the regular season standings for non-playoff teams.
-    # Note: Sleeper's `pts` is `points for`.
-    def get_sort_key(roster):
-        wins = roster['settings']['wins']
-        # Use a high number for points if 'pts' is missing
-        pts = float(roster['settings'].get('pts', 99999)) 
-        return (wins, pts)
-
-    rosters.sort(key=get_sort_key)
-    
-    # 5. Populate all teams data, marking lottery eligibility
-    all_teams_data = []
-    for i, roster in enumerate(rosters):
-        owner_id = roster['owner_id']
-        team_name = user_map.get(owner_id, f"Team {owner_id}")
+    # 3. Calculate Analytics for each team
+    analytics_data = []
+    for roster in rosters:
+        # Skip rosters with no owners if necessary, or keep them
+        if not roster.get('owner_id'): continue
         
-        is_lottery_eligible = (i < num_lottery_teams)
-        
-        all_teams_data.append({
-            "seed": i + 1, # Seed 1 is the worst team
-            "team_name": team_name,
-            "wins": roster['settings']['wins'],
-            "losses": roster['settings']['losses'],
-            "pts": roster['settings'].get('pts', 'N/A'),
-            "is_lottery_eligible": is_lottery_eligible
-        })
+        stats = calculate_team_analytics(roster, user_map, all_players)
+        analytics_data.append(stats)
 
-    if not all_teams_data:
-        return jsonify({"error": "No teams found for the previous season."}), 404
+    # Sort by Total FPTS descending by default
+    analytics_data.sort(key=lambda x: x['total_fpts'], reverse=True)
 
-    return jsonify({"teams": all_teams_data})
-
+    return jsonify({"analytics": analytics_data})
 
 @app.route('/run_lottery', methods=['POST'])
 def handle_run_lottery():
-    """
-    Runs the lottery simulation.
-    Expects JSON: {
-        "teams": [{"seed": 1, "team_name": "Team A", "is_lottery_eligible": true}, ...],
-        "odds": {"1": 140, "2": 140, ...}
-    }
-    """
     data = request.json
-    teams = data.get('teams') # This will now be all_teams_data
-    odds_map = data.get('odds')
-
-    if not teams or not odds_map:
-        return jsonify({"error": "Missing teams or odds data"}), 400
-
-    # The perform_nba_lottery function now expects the full list of teams
-    final_order = perform_nba_lottery(teams, odds_map)
+    teams = data.get('teams')
+    odds_map = data.get('odds') # {'1': 140, '2': 140, ...} as passed from frontend
     
+    # Ensure teams are sorted by seed to match odds_map keys
+    teams.sort(key=lambda t: t['seed'])
+
+    # Logic to split odds for tied teams
+    # 1. Group teams by record
+    groups = []
+    if teams:
+        current_group = [teams[0]]
+        for i in range(1, len(teams)):
+            prev = teams[i-1]
+            curr = teams[i]
+            if prev['wins'] == curr['wins'] and prev['losses'] == curr['losses']:
+                current_group.append(curr)
+            else:
+                groups.append(current_group)
+                current_group = [curr]
+        groups.append(current_group)
+
+    # 2. Calculate and re-distribute odds for each group
+    for group in groups:
+        if len(group) > 1:
+            # Calculate total odds assigned to these slots by the user
+            total_group_odds = 0
+            seed_keys = []
+            for team in group:
+                seed_str = str(team['seed'])
+                seed_keys.append(seed_str)
+                total_group_odds += int(odds_map.get(seed_str, 0))
+            
+            # Distribute evenly
+            count = len(group)
+            base_share = total_group_odds // count
+            remainder = total_group_odds % count
+            
+            # Assign back to odds_map
+            # Since teams are sorted by seed, the first team in 'group' has the highest seed (lowest number)
+            # and thus gets priority for the remainder, matching the 'random drawing winner' logic.
+            for i, team in enumerate(group):
+                seed_str = str(team['seed'])
+                value = base_share
+                if remainder > 0:
+                    value += 1
+                    remainder -= 1
+                odds_map[seed_str] = value
+
+    teams_by_seed = {team['seed']: team for team in teams}
+    final_order = perform_nba_lottery(teams_by_seed, odds_map)
     return jsonify(final_order)
 
-# --- Main ---
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
-
-# --- Main ---
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
