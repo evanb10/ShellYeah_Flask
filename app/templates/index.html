@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShellYeah! Fantasy Suite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="shell-bg text-white min-h-screen p-4 md:p-8 pb-24">
+
+    <div class="container mx-auto max-w-5xl">
+        
+        <!-- Header / Navigation -->
+        <nav class="flex flex-col md:flex-row justify-between items-center mb-8 bg-emerald-900/90 backdrop-blur p-4 rounded-2xl shadow-2xl border border-emerald-700">
+            <div class="flex items-center gap-3 mb-4 md:mb-0">
+                <svg class="w-12 h-12 text-orange-500 bounce" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                </svg>
+                <div>
+                    <h1 class="text-3xl text-white tracking-wide drop-shadow-md">
+                        Shell<span class="text-orange-400">Yeah!</span>
+                    </h1>
+                    <p class="text-xs text-emerald-200 font-sans tracking-wider">FANTASY BASKETBALL SUITE</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <div class="flex gap-2 bg-emerald-950/50 p-1 rounded-xl">
+                    <button onclick="switchMode('lottery')" id="nav-lottery" class="px-6 py-2 rounded-lg font-bold transition shadow-lg flex items-center gap-2">
+                        <span>🎲</span> Lottery
+                    </button>
+                    <button onclick="switchMode('analytics')" id="nav-analytics" class="px-6 py-2 rounded-lg font-bold transition shadow-lg flex items-center gap-2">
+                        <span>📊</span> Analytics
+                    </button>
+                    <button onclick="switchMode('trades')" id="nav-trades" class="px-6 py-2 rounded-lg font-bold transition shadow-lg flex items-center gap-2">
+                        <span>🤝</span> Trades
+                    </button>
+                </div>
+                <button id="nav-logout-btn" class="hidden bg-emerald-950/50 hover:bg-red-600 hover:border-red-500 text-emerald-400 hover:text-white p-3 rounded-xl border border-emerald-800 transition shadow-lg" title="Logout">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Loading Overlay -->
+        <div id="loading-indicator" class="hidden fixed top-0 left-0 w-full h-full bg-emerald-950/80 backdrop-blur-sm flex justify-center items-center z-50">
+            <div class="text-center">
+                <svg class="w-20 h-20 text-orange-500 spin-ball mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 0v20m0-20a10 10 0 0 1 10 10m-10-10a10 10 0 0 0-10 10m20 0a10 10 0 0 1-10 10m10-10a10 10 0 0 0-10 10"></path></svg>
+                <p class="text-orange-400 font-bold font-mono text-xl animate-pulse">SCOUTING PLAYERS...</p>
+            </div>
+        </div>
+
+        <div id="error-message" class="hidden bg-red-500 text-white p-4 rounded-lg mb-4 text-center font-bold shadow-lg border-2 border-red-700"></div>
+
+        <!-- STEP 1 (Shared) -->
+        <section id="step-1-username" class="bg-emerald-800 p-8 rounded-2xl shadow-2xl border-b-8 border-emerald-950 mb-6">
+            <h2 class="text-2xl mb-6 text-white">Find Your League</h2>
+            <div class="flex flex-col md:flex-row gap-4">
+                <input type="text" id="username-input" placeholder="Sleeper Username" class="flex-grow bg-emerald-900/50 text-white placeholder-emerald-400 p-4 rounded-xl border-2 border-emerald-600 focus:border-orange-400 focus:outline-none transition font-mono">
+                <input type="text" id="season-input" value="2025" placeholder="Season" class="w-full md:w-32 bg-emerald-900/50 text-white placeholder-emerald-400 p-4 rounded-xl border-2 border-emerald-600 focus:border-orange-400 focus:outline-none transition font-mono text-center">
+                <button id="find-leagues-btn" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-4 px-8 rounded-xl transition shadow-lg border-b-4 border-orange-700 active:border-b-0 active:translate-y-1">
+                    GO TURTLES!
+                </button>
+            </div>
+            <!-- Logout Option -->
+            <div id="user-display" class="hidden mt-4 text-center text-emerald-300 text-sm">
+                Logged in as <span id="current-user-span" class="font-bold text-orange-300"></span> • <button id="logout-btn" class="underline hover:text-white">Change User</button>
+            </div>
+        </section>
+
+        <!-- STEP 2 (Shared) -->
+        <section id="step-2-leagues" class="hidden bg-emerald-800 p-6 rounded-2xl shadow-xl mb-6 border-b-8 border-emerald-950">
+            <h2 class="text-2xl mb-4 text-white">Select League</h2>
+            <div id="leagues-list" class="flex flex-col gap-3"></div>
+        </section>
+
+        <!-- LOTTERY SECTIONS -->
+        <div id="lottery-container" class="hidden">
+            <!-- Setup -->
+            <section id="step-3-setup" class="hidden bg-emerald-800 p-6 rounded-2xl shadow-xl mt-6 border-b-8 border-emerald-950">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl text-white">Lottery Setup</h2>
+                    <div id="odds-counter" class="text-sm font-bold bg-emerald-950 px-4 py-2 rounded-lg border border-emerald-600 font-mono text-orange-400">Total: 0/1000</div>
+                </div>
+                <div class="mb-4">
+                    <select id="odds-preset" class="w-full bg-emerald-900 text-white p-4 rounded-xl border-2 border-emerald-600 focus:border-orange-500 outline-none font-bold">
+                        <option value="nba-2025">NBA 2025 Odds (Weighted)</option>
+                        <option value="flat">Flat Odds (Equal Chance)</option>
+                    </select>
+                </div>
+                <div class="overflow-hidden rounded-xl border-2 border-emerald-700">
+                    <table class="min-w-full divide-y divide-emerald-700">
+                        <thead class="bg-emerald-900">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs text-emerald-200 uppercase font-bold">Seed</th>
+                                <th class="px-4 py-3 text-left text-xs text-emerald-200 uppercase font-bold">Team</th>
+                                <th class="px-4 py-3 text-left text-xs text-emerald-200 uppercase font-bold">Record</th>
+                                <th class="px-4 py-3 text-left text-xs text-emerald-200 uppercase font-bold">Odds</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lottery-teams-table" class="bg-emerald-800 divide-y divide-emerald-700 text-white"></tbody>
+                    </table>
+                </div>
+                <button id="run-lottery-btn" class="w-full bg-green-500 hover:bg-green-400 text-emerald-900 font-black text-xl py-4 px-6 rounded-xl mt-6 shadow-lg border-b-4 border-green-700 active:border-b-0 active:translate-y-1 transition">
+                    RUN THE SIMULATION
+                </button>
+            </section>
+
+            <!-- Results -->
+            <section id="step-4-results" class="hidden bg-emerald-800 p-6 rounded-2xl shadow-xl mt-6 border-b-8 border-emerald-950">
+                <h2 class="text-3xl mb-2 text-center text-white drop-shadow-md">DRAFT LOTTERY</h2>
+                <p class="text-center text-emerald-200 mb-6 font-mono">Turn over the shells to see who won!</p>
+                
+                <div class="text-center mb-8">
+                    <button id="reveal-picks-btn" class="bg-orange-500 hover:bg-orange-400 text-white font-bold py-3 px-8 rounded-full shadow-lg border-b-4 border-orange-700 active:border-b-0 active:translate-y-1 transition animate-pulse">
+                        REVEAL PICKS
+                    </button>
+                </div>
+
+                <div id="results-grid" class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8"></div>
+                
+                <div class="text-center mt-10">
+                     <button id="start-over-btn" class="bg-emerald-900 hover:bg-emerald-950 text-emerald-300 font-bold py-2 px-6 rounded-lg border border-emerald-700 transition">Start Over</button>
+                </div>
+            </section>
+        </div>
+
+        <!-- ANALYTICS SECTION -->
+        <div id="analytics-container" class="hidden">
+            <section id="analytics-dashboard" class="hidden bg-emerald-800 p-6 rounded-2xl shadow-xl mt-6 border-b-8 border-emerald-950">
+                <h2 class="text-2xl mb-6 flex items-center text-white">
+                    <span class="mr-3 text-3xl">🐢</span> League Analytics
+                </h2>
+                <p class="text-emerald-300 mb-4 text-sm">Click on a team row to view full roster details.</p>
+                <div class="overflow-hidden rounded-xl border-2 border-emerald-700 shadow-inner">
+                    <table class="min-w-full divide-y divide-emerald-700">
+                        <thead class="bg-emerald-900 text-emerald-100">
+                            <tr>
+                                <th class="px-4 py-4 text-left text-xs font-bold uppercase">Team</th>
+                                <th class="px-4 py-4 text-left text-xs font-bold uppercase">Record</th>
+                                <th class="px-4 py-4 text-left text-xs font-bold uppercase">Avg Age</th>
+                                <th class="px-4 py-4 text-left text-xs font-bold uppercase">Avg Score</th>
+                                <th class="px-4 py-4 text-left text-xs font-bold uppercase">Roster</th>
+                            </tr>
+                        </thead>
+                        <tbody id="analytics-table" class="bg-emerald-800 divide-y divide-emerald-700 text-white"></tbody>
+                    </table>
+                </div>
+                <p class="text-xs text-emerald-300 mt-4 text-right font-mono bg-emerald-900/50 p-2 rounded">* Data provided by Sleeper API</p>
+            </section>
+        </div>
+
+        <!-- TRADES SECTION -->
+        <div id="trades-container" class="hidden">
+            <section id="trades-dashboard" class="hidden bg-emerald-800 p-6 rounded-2xl shadow-xl mt-6 border-b-8 border-emerald-950">
+                <h2 class="text-2xl mb-6 flex items-center text-white">
+                    <span class="mr-3 text-3xl">🤝</span> Recent Trades
+                </h2>
+                <div id="trades-list" class="flex flex-col gap-6"></div>
+            </section>
+        </div>
+
+    </div>
+
+    <!-- HELP BUTTON & MODAL -->
+    <button id="help-btn" onclick="openHelp()" class="fixed bottom-4 right-4 bg-emerald-600 hover:bg-emerald-500 text-white p-4 rounded-full shadow-2xl border-2 border-emerald-400 z-50 transition transform hover:scale-110 flex items-center justify-center">
+        <span class="text-2xl font-bold font-mono">?</span>
+    </button>
+
+    <div id="help-modal" class="hidden fixed top-0 left-0 w-full h-full bg-black/80 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+        <div class="bg-emerald-900 border-4 border-orange-500 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden transform transition-all scale-100">
+            <div class="bg-emerald-950 p-4 flex justify-between items-center border-b border-emerald-800">
+                <h3 class="text-orange-400 font-bold font-mono text-lg flex items-center gap-2">
+                    🐢 TURTLE GUIDE
+                </h3>
+                <button onclick="closeHelp()" class="text-emerald-400 hover:text-white font-bold text-2xl">&times;</button>
+            </div>
+            <div class="p-6">
+                <div id="help-content" class="text-emerald-100 leading-relaxed font-sans">
+                    <!-- Content Injected Here -->
+                </div>
+            </div>
+            <div class="bg-emerald-950 p-3 text-center">
+                <button onclick="closeHelp()" class="bg-emerald-800 hover:bg-emerald-700 text-emerald-200 text-xs font-bold py-2 px-6 rounded-full transition">GOT IT!</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TEAM DETAILS VIEW (Drill-down) -->
+    <section id="team-details-view" class="hidden bg-emerald-800 p-6 rounded-2xl shadow-xl mt-6 border-b-8 border-emerald-950 animate-fade-in">
+        <!-- Navigation & Header -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 border-b border-emerald-700 pb-6">
+            <div class="flex items-center gap-4">
+                <button onclick="hideTeamDetails()" class="bg-emerald-900 hover:bg-emerald-950 text-emerald-300 font-bold py-2 px-4 rounded-lg border border-emerald-700 transition flex items-center gap-2 group">
+                    <span class="group-hover:-translate-x-1 transition">←</span> Back
+                </button>
+                <div class="flex items-center gap-3" id="team-header-info">
+                    <!-- Injected via JS: Avatar + Name -->
+                </div>
+            </div>
+            <div class="flex gap-2" id="team-header-stats">
+                <!-- Injected via JS: Record, Rank, etc -->
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-emerald-900/50 p-4 rounded-xl border border-emerald-700">
+                <p class="text-xs text-emerald-400 uppercase font-bold">Avg Weekly Pts</p>
+                <p class="text-2xl font-bold text-orange-400" id="stat-avg-pts">0.0</p>
+            </div>
+            <div class="bg-emerald-900/50 p-4 rounded-xl border border-emerald-700">
+                <p class="text-xs text-emerald-400 uppercase font-bold">Total Season Pts</p>
+                <p class="text-2xl font-bold text-white" id="stat-total-pts">0.0</p>
+            </div>
+            <div class="bg-emerald-900/50 p-4 rounded-xl border border-emerald-700">
+                <p class="text-xs text-emerald-400 uppercase font-bold">Avg Roster Age</p>
+                <p class="text-2xl font-bold text-white" id="stat-avg-age">0.0</p>
+            </div>
+            <div class="bg-emerald-900/50 p-4 rounded-xl border border-emerald-700">
+                <p class="text-xs text-emerald-400 uppercase font-bold">Roster Size</p>
+                <p class="text-2xl font-bold text-white" id="stat-roster-size">0</p>
+            </div>
+        </div>
+
+        <!-- Roster Table -->
+        <h3 class="text-xl text-white mb-4 font-bold flex items-center gap-2">
+            <span>📋</span> Active Roster
+        </h3>
+        <div class="overflow-hidden rounded-xl border-2 border-emerald-700 bg-emerald-900/30">
+            <table class="min-w-full divide-y divide-emerald-700">
+                <thead class="bg-emerald-900 text-emerald-100 select-none">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-bold uppercase tracking-wider cursor-pointer hover:text-white hover:bg-emerald-800 transition" onclick="sortRoster('name')">
+                            Player <span id="sort-indicator-name" class="ml-1"></span>
+                        </th>
+                        <th class="px-6 py-3 text-center text-xs font-bold uppercase tracking-wider cursor-pointer hover:text-white hover:bg-emerald-800 transition" onclick="sortRoster('position')">
+                            Pos <span id="sort-indicator-position" class="ml-1"></span>
+                        </th>
+                        <th class="px-6 py-3 text-center text-xs font-bold uppercase tracking-wider cursor-pointer hover:text-white hover:bg-emerald-800 transition" onclick="sortRoster('team')">
+                            NBA Team <span id="sort-indicator-team" class="ml-1"></span>
+                        </th>
+                        <th class="px-6 py-3 text-center text-xs font-bold uppercase tracking-wider cursor-pointer hover:text-white hover:bg-emerald-800 transition" onclick="sortRoster('age')">
+                            Age <span id="sort-indicator-age" class="ml-1"></span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody id="team-view-roster" class="divide-y divide-emerald-700/50 text-white"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- PLAYER DETAILS VIEW -->
+    <section id="player-details-view" class="hidden bg-emerald-800 p-6 rounded-2xl shadow-xl mt-6 border-b-8 border-emerald-950 animate-fade-in">
+        <div class="flex items-center gap-4 mb-8 border-b border-emerald-700 pb-6">
+            <button onclick="hidePlayerDetails()" class="bg-emerald-900 hover:bg-emerald-950 text-emerald-300 font-bold py-2 px-4 rounded-lg border border-emerald-700 transition flex items-center gap-2 group">
+                <span class="group-hover:-translate-x-1 transition">←</span> Back to Team
+            </button>
+        </div>
+
+        <div class="flex flex-col md:flex-row gap-8">
+            <!-- Left Column: Player Card -->
+            <div class="w-full md:w-1/3">
+                <div class="bg-emerald-900 p-6 rounded-2xl border-2 border-emerald-700 text-center shadow-lg relative overflow-hidden">
+                    <!-- Jersey Number Background -->
+                    <div id="player-number-bg" class="absolute top-0 right-0 text-9xl font-black text-emerald-800 opacity-30 -mr-4 -mt-4 font-mono select-none"></div>
+                    
+                    <div class="relative z-10">
+                        <div class="w-32 h-32 mx-auto bg-emerald-800 rounded-full border-4 border-orange-500 flex items-center justify-center mb-4 shadow-lg">
+                            <span id="player-initials" class="text-4xl font-black text-emerald-400"></span>
+                        </div>
+                        <h2 id="player-name" class="text-2xl font-bold text-white mb-1 brand-font"></h2>
+                        <p id="player-meta" class="text-emerald-400 font-mono text-sm font-bold uppercase tracking-widest"></p>
+                        
+                        <div class="mt-6 pt-6 border-t border-emerald-800 grid grid-cols-2 gap-4 text-left">
+                            <div>
+                                <p class="text-xs text-emerald-500 uppercase font-bold">Height</p>
+                                <p id="player-height" class="text-white font-mono"></p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-emerald-500 uppercase font-bold">Weight</p>
+                                <p id="player-weight" class="text-white font-mono"></p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-emerald-500 uppercase font-bold">Age</p>
+                                <p id="player-age" class="text-white font-mono"></p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-emerald-500 uppercase font-bold">Exp</p>
+                                <p id="player-exp" class="text-white font-mono"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Status & News -->
+            <div class="w-full md:w-2/3 flex flex-col gap-6">
+                
+                <!-- Status Card -->
+                <div class="bg-emerald-900/50 p-6 rounded-2xl border border-emerald-700">
+                    <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                        🚑 Injury Status
+                    </h3>
+                    <div class="flex items-center gap-4">
+                        <div id="status-indicator" class="px-4 py-2 rounded-lg font-bold text-sm uppercase tracking-wide"></div>
+                        <div>
+                            <p id="injury-detail" class="text-white font-bold"></p>
+                            <p id="injury-notes" class="text-emerald-400 text-sm italic mt-1"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- News Actions -->
+                <div class="bg-emerald-900/50 p-6 rounded-2xl border border-emerald-700">
+                    <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                        📰 Latest News
+                    </h3>
+                    <p class="text-emerald-300 text-sm mb-6">Get the latest updates, fantasy analysis, and injury reports from around the web.</p>
+                    <a id="news-link" href="#" target="_blank" class="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 px-6 rounded-xl transition shadow-lg border-b-4 border-orange-800 active:border-b-0 active:translate-y-1">
+                        <span>🔍</span> Search Recent News
+                    </a>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Custom JS -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
