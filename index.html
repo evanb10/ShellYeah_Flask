@@ -111,6 +111,9 @@
                     <button onclick="switchMode('analytics')" id="nav-analytics" class="px-6 py-2 rounded-lg font-bold transition shadow-lg flex items-center gap-2">
                         <span>📊</span> Analytics
                     </button>
+                    <button onclick="switchMode('trades')" id="nav-trades" class="px-6 py-2 rounded-lg font-bold transition shadow-lg flex items-center gap-2">
+                        <span>🤝</span> Trades
+                    </button>
                 </div>
                 <button id="nav-logout-btn" class="hidden bg-emerald-950/50 hover:bg-red-600 hover:border-red-500 text-emerald-400 hover:text-white p-3 rounded-xl border border-emerald-800 transition shadow-lg" title="Logout">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -225,6 +228,16 @@
                     </table>
                 </div>
                 <p class="text-xs text-emerald-300 mt-4 text-right font-mono bg-emerald-900/50 p-2 rounded">* Data provided by Sleeper API</p>
+            </section>
+        </div>
+
+        <!-- TRADES SECTION -->
+        <div id="trades-container" class="hidden">
+            <section id="trades-dashboard" class="hidden bg-emerald-800 p-6 rounded-2xl shadow-xl mt-6 border-b-8 border-emerald-950">
+                <h2 class="text-2xl mb-6 flex items-center text-white">
+                    <span class="mr-3 text-3xl">🤝</span> Recent Trades
+                </h2>
+                <div id="trades-list" class="flex flex-col gap-6"></div>
             </section>
         </div>
 
@@ -413,6 +426,9 @@
             lotteryCont: document.getElementById('lottery-container'),
             analyticsCont: document.getElementById('analytics-container'),
             analyticsDash: document.getElementById('analytics-dashboard'),
+            tradesCont: document.getElementById('trades-container'),
+            tradesDash: document.getElementById('trades-dashboard'),
+            tradesList: document.getElementById('trades-list'),
             setupSec: document.getElementById('step-3-setup'),
             resultsSec: document.getElementById('step-4-results'),
             leaguesList: document.getElementById('leagues-list'),
@@ -426,6 +442,7 @@
             revealBtn: document.getElementById('reveal-picks-btn'),
             navLottery: document.getElementById('nav-lottery'),
             navAnalytics: document.getElementById('nav-analytics'),
+            navTrades: document.getElementById('nav-trades'),
             userDisplay: document.getElementById('user-display'),
             currentUserSpan: document.getElementById('current-user-span'),
             logoutBtn: document.getElementById('logout-btn'),
@@ -500,13 +517,19 @@
                 content = `
                     <h4 class="text-xl font-bold text-white mb-2">Step 2: Select League</h4>
                     <p>Choose which league you want to manage.</p>
-                    <p class="mt-2 text-sm text-emerald-300">Use the toggle at the top right to switch between <strong>Lottery Mode</strong> (for draft simulation) and <strong>Analytics Mode</strong> (for stats).</p>
+                    <p class="mt-2 text-sm text-emerald-300">Use the toggle at the top right to switch between <strong>Lottery Mode</strong> (for draft simulation), <strong>Analytics Mode</strong> (for stats), and <strong>Trades Mode</strong> (for history).</p>
                 `;
             } else if (!dom.analyticsDash.classList.contains('hidden')) {
                 content = `
                     <h4 class="text-xl font-bold text-white mb-2">Analytics Dashboard</h4>
                     <p>View stats for every team in your league.</p>
                     <p class="mt-2"><strong>Click on any team</strong> to view their full roster and detailed breakdown.</p>
+                `;
+            } else if (!dom.tradesDash.classList.contains('hidden')) {
+                content = `
+                    <h4 class="text-xl font-bold text-white mb-2">Trade Tracker</h4>
+                    <p>Review all completed trades in your league for the selected season.</p>
+                    <p class="mt-2 text-sm text-emerald-300">We analyze transaction logs to show who moved where.</p>
                 `;
             } else if (!dom.teamDetailsView.classList.contains('hidden')) {
                 content = `
@@ -731,36 +754,48 @@
         function switchMode(mode) {
             currentMode = mode;
             
+            // Reset Buttons
+            const resetBtn = (el) => {
+                el.classList.replace('bg-orange-500', 'text-emerald-200');
+                el.classList.replace('text-white', 'hover:bg-emerald-800');
+                el.classList.remove('shadow-orange-500/50');
+            };
+            const activeBtn = (el) => {
+                el.classList.replace('text-emerald-200', 'bg-orange-500');
+                el.classList.replace('hover:bg-emerald-800', 'text-white');
+                el.classList.add('shadow-orange-500/50');
+            };
+
+            resetBtn(dom.navLottery);
+            resetBtn(dom.navAnalytics);
+            resetBtn(dom.navTrades);
+
+            dom.lotteryCont.classList.add('hidden');
+            dom.analyticsCont.classList.add('hidden');
+            dom.tradesCont.classList.add('hidden');
+
             if (mode === 'lottery') {
-                dom.navLottery.classList.replace('text-emerald-200', 'bg-orange-500');
-                dom.navLottery.classList.replace('hover:bg-emerald-800', 'text-white');
-                dom.navLottery.classList.add('shadow-orange-500/50');
-                
-                dom.navAnalytics.classList.replace('bg-orange-500', 'text-emerald-200');
-                dom.navAnalytics.classList.replace('text-white', 'hover:bg-emerald-800');
-                dom.navAnalytics.classList.remove('shadow-orange-500/50');
-
+                activeBtn(dom.navLottery);
                 dom.lotteryCont.classList.remove('hidden');
-                dom.analyticsCont.classList.add('hidden');
-            } else {
-                dom.navAnalytics.classList.replace('text-emerald-200', 'bg-orange-500');
-                dom.navAnalytics.classList.replace('hover:bg-emerald-800', 'text-white');
-                dom.navAnalytics.classList.add('shadow-orange-500/50');
-
-                dom.navLottery.classList.replace('bg-orange-500', 'text-emerald-200');
-                dom.navLottery.classList.replace('text-white', 'hover:bg-emerald-800');
-                dom.navLottery.classList.remove('shadow-orange-500/50');
-
-                dom.lotteryCont.classList.add('hidden');
+            } else if (mode === 'analytics') {
+                activeBtn(dom.navAnalytics);
                 dom.analyticsCont.classList.remove('hidden');
+            } else if (mode === 'trades') {
+                activeBtn(dom.navTrades);
+                dom.tradesCont.classList.remove('hidden');
             }
 
             // Ensure we are at the root of the section
             dom.teamDetailsView.classList.add('hidden');
-            dom.playerDetailsView.classList.add('hidden'); // Hide player view
-            if(dom.analyticsCont.classList.contains('hidden') === false) {
+            dom.playerDetailsView.classList.add('hidden'); 
+            
+            if(mode === 'analytics' && dom.analyticsCont.classList.contains('hidden') === false) {
                  dom.analyticsDash.classList.remove('hidden');
             }
+             if(mode === 'trades' && dom.tradesCont.classList.contains('hidden') === false) {
+                 dom.tradesDash.classList.remove('hidden');
+            }
+
 
             // State Persistence Logic
             if (fetchedLeaguesCache && fetchedLeaguesCache.length > 0) {
@@ -771,9 +806,7 @@
                 dom.setupSec.classList.add('hidden');
                 dom.resultsSec.classList.add('hidden');
                 
-                if (mode === 'lottery') {
-                    dom.analyticsDash.classList.add('hidden');
-                }
+                if (mode === 'lottery') dom.analyticsDash.classList.add('hidden');
             } else {
                 dom.step1.classList.remove('hidden');
                 dom.step2.classList.add('hidden');
@@ -856,7 +889,7 @@
                     dom.setupSec.classList.remove('hidden');
                     dom.step2.classList.add('hidden');
                 }
-            } else {
+            } else if (currentMode === 'analytics') {
                 const data = await fetchApi('/get_league_analytics', { league_id: id });
                 if (data && data.analytics) {
                     currentAnalyticsData = data.analytics; // Store for modal
@@ -864,7 +897,82 @@
                     dom.analyticsDash.classList.remove('hidden');
                     dom.step2.classList.add('hidden');
                 }
+            } else if (currentMode === 'trades') {
+                const data = await fetchApi('/get_league_trades', { league_id: id });
+                if (data && data.trades) {
+                    renderTrades(data.trades);
+                    dom.tradesDash.classList.remove('hidden');
+                    dom.step2.classList.add('hidden');
+                }
             }
+        }
+
+        function renderTrades(trades) {
+            dom.tradesList.innerHTML = trades.length ? '' : '<p class="text-emerald-300 italic">No trades found for this season.</p>';
+            
+            trades.forEach(t => {
+                const date = new Date(t.timestamp).toLocaleDateString();
+                
+                let rostersHtml = '';
+                t.rosters_involved.forEach(roster => {
+                    const avatarImg = roster.avatar 
+                        ? `<img src="${roster.avatar}" class="w-10 h-10 rounded-full border border-orange-500">`
+                        : `<div class="w-10 h-10 rounded-full bg-emerald-900 border border-orange-500 flex items-center justify-center text-xs font-bold">T${roster.team_name[0]}</div>`;
+                    
+                    let itemsHtml = '';
+                    
+                    // Players
+                    if (roster.received_players.length > 0) {
+                        itemsHtml += `<div class="mb-2"><p class="text-xs font-bold text-emerald-400 uppercase mb-1">Received Players</p>`;
+                        roster.received_players.forEach(p => {
+                            itemsHtml += `
+                                <div class="flex items-center gap-2 mb-1 bg-emerald-900/50 p-1 rounded">
+                                    <span class="pos-badge pos-${p.position}">${p.position}</span>
+                                    <span class="text-white font-bold text-sm">${p.name}</span>
+                                </div>`;
+                        });
+                        itemsHtml += `</div>`;
+                    }
+                    
+                    // Picks
+                    if (roster.received_picks.length > 0) {
+                        itemsHtml += `<div class="mb-2"><p class="text-xs font-bold text-emerald-400 uppercase mb-1">Received Picks</p>`;
+                        roster.received_picks.forEach(pick => {
+                            itemsHtml += `
+                                <div class="flex items-center gap-2 mb-1 bg-emerald-900/50 p-1 rounded">
+                                    <span class="text-orange-400 font-mono text-xs">🎲</span>
+                                    <span class="text-white font-bold text-sm">${pick.description}</span>
+                                </div>`;
+                        });
+                        itemsHtml += `</div>`;
+                    }
+                    
+                    if (!itemsHtml) itemsHtml = `<p class="text-gray-500 text-xs italic">Nothing received (maybe FAAB?)</p>`;
+
+                    rostersHtml += `
+                        <div class="flex-1 bg-emerald-900/30 p-4 rounded-xl border border-emerald-700/50">
+                            <div class="flex items-center gap-3 mb-3 pb-3 border-b border-emerald-700/30">
+                                ${avatarImg}
+                                <span class="font-bold text-white">${roster.team_name}</span>
+                            </div>
+                            <div>${itemsHtml}</div>
+                        </div>
+                    `;
+                });
+
+                const tradeCard = document.createElement('div');
+                tradeCard.className = "bg-emerald-900/50 border-2 border-emerald-700 p-6 rounded-2xl shadow-lg";
+                tradeCard.innerHTML = `
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="bg-orange-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">TRADE</span>
+                        <span class="text-emerald-400 text-sm font-mono font-bold">Week ${t.week} • ${date}</span>
+                    </div>
+                    <div class="flex flex-col md:flex-row gap-4">
+                        ${rostersHtml}
+                    </div>
+                `;
+                dom.tradesList.appendChild(tradeCard);
+            });
         }
 
         function renderAnalytics(teams) {

@@ -80,6 +80,15 @@ def get_users_in_league(league_id: str) -> List[Dict[str, Any]]:
         print(f"Error getting users in league: {e}")
         return []
 
+def get_transactions(league_id: str, round_num: int) -> List[Dict[str, Any]]:
+    try:
+        response = requests.get(f"{SLEEPER_API_BASE}/league/{league_id}/transactions/{round_num}")
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error getting transactions for week {round_num}: {e}")
+        return []
+
 # --- Lottery Logic ---
 
 def perform_nba_lottery(teams_by_seed: Dict[int, Dict[str, Any]], odds_map: Dict[str, int]) -> List[Dict[str, Any]]:
@@ -373,6 +382,99 @@ def handle_get_analytics():
     analytics_data.sort(key=lambda x: x['total_fpts'], reverse=True)
 
     return jsonify({"analytics": analytics_data})
+
+@app.route('/get_league_trades', methods=['POST'])
+def handle_get_league_trades():
+    data = request.json
+    league_id = data.get('league_id')
+    if not league_id:
+        return jsonify({"error": "League ID is required"}), 400
+
+    # Load context
+    all_players = get_all_players()
+    rosters = get_rosters(league_id)
+    users = get_users_in_league(league_id)
+    
+    # Map Roster ID -> User Info
+    roster_map = {}
+    for roster in rosters:
+        rid = roster['roster_id']
+        owner_id = roster['owner_id']
+        # Find user
+        user = next((u for u in users if u['user_id'] == owner_id), None)
+        name = "Unknown"
+        avatar = None
+        if user:
+            name = user.get('metadata', {}).get('team_name') or user.get('display_name')
+            avatar = f"{SLEEPER_AVATAR_BASE}/{user['avatar']}" if user.get('avatar') else None
+        
+        roster_map[rid] = {
+            "name": name,
+            "avatar": avatar,
+            "owner_id": owner_id
+        }
+
+    all_trades = []
+    # Fetch a reasonable number of weeks. NBA regular season is ~24 weeks.
+    for w in range(1, 25): 
+        txs = get_transactions(league_id, w)
+        for tx in txs:
+            if tx['status'] == 'complete' and tx['type'] == 'trade':
+                # Process Trade
+                processed_tx = {
+                    "transaction_id": tx['transaction_id'],
+                    "week": w,
+                    "timestamp": tx['status_updated'], # Unix ms
+                    "rosters_involved": []
+                }
+                
+                trade_details = {} 
+                
+                # Init participants
+                for rid in tx['roster_ids']:
+                    trade_details[rid] = {"received_players": [], "received_picks": []}
+
+                # Parse Adds (Players Received)
+                if tx.get('adds'):
+                    for pid, rid in tx['adds'].items():
+                        if rid in trade_details:
+                            p_data = all_players.get(pid, {})
+                            p_name = f"{p_data.get('first_name','')} {p_data.get('last_name','')}".strip() or "Unknown Player"
+                            trade_details[rid]['received_players'].append({
+                                "player_id": pid,
+                                "name": p_name,
+                                "position": p_data.get('position')
+                            })
+
+                # Parse Draft Picks
+                if tx.get('draft_picks'):
+                    for pick in tx['draft_picks']:
+                        # owner_id is the receiver roster_id
+                        rid = pick['owner_id']
+                        if rid in trade_details:
+                            desc = f"{pick['season']} Round {pick['round']}"
+                            trade_details[rid]['received_picks'].append({
+                                "description": desc,
+                                "season": pick['season'],
+                                "round": pick['round']
+                            })
+                
+                # Format for frontend
+                for rid, details in trade_details.items():
+                    r_info = roster_map.get(rid, {"name": f"Roster {rid}", "avatar": None})
+                    processed_tx['rosters_involved'].append({
+                        "team_name": r_info['name'],
+                        "avatar": r_info['avatar'],
+                        "received_players": details['received_players'],
+                        "received_picks": details['received_picks']
+                    })
+                
+                all_trades.append(processed_tx)
+    
+    # Sort by time, newest first
+    all_trades.sort(key=lambda x: x['timestamp'], reverse=True)
+    
+    return jsonify({"trades": all_trades})
 
 @app.route('/run_lottery', methods=['POST'])
 def handle_run_lottery():
