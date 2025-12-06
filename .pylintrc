@@ -1,0 +1,20 @@
+[MASTER]
+# A comma-separated list of package or module names from where C extensions may
+# be loaded. Extensions are loading into the active Python interpreter and may
+# run arbitrary code.
+extension-pkg-whitelist=
+
+# Specify a score threshold to be exceeded before program exits with error.
+fail-under=10.0
+
+[MESSAGES CONTROL]
+# Disable the message, report, category or checker with the given id(s).
+# C0114: Missing module docstring
+# C0115: Missing class docstring
+# C0116: Missing function or method docstring
+# R0903: Too few public methods
+disable=C0114,C0115,C0116,R0903
+
+[FORMAT]
+# Maximum number of characters on a single line.
+max-line-length=120

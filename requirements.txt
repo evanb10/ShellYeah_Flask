@@ -3,3 +3,4 @@ requests
 Flask-CORS
 pytest
 pytest-mock
+pylint
