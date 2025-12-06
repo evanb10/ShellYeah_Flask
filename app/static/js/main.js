@@ -1,5 +1,6 @@
 const API_URL = ''; // Relative path
 let currentMode = 'lottery';
+let activeLeagueId = null;
 let lotteryTeams = [];
 let finalDraftOrder = [];
 let fetchedLeaguesCache = null;
@@ -470,6 +471,7 @@ function renderLeaguesList(leagues) {
 document.getElementById('find-leagues-btn').onclick = fetchLeagues;
 
 async function handleSelectLeague(id) {
+    activeLeagueId = id;
     if (currentMode === 'lottery') {
         const data = await fetchApi('/get_lottery_teams', { league_id: id });
         if (data && data.teams) {
@@ -488,13 +490,109 @@ async function handleSelectLeague(id) {
             dom.step2.classList.add('hidden');
         }
     } else if (currentMode === 'trades') {
-        const data = await fetchApi('/get_league_trades', { league_id: id });
-        if (data && data.trades) {
-            renderTrades(data.trades);
-            dom.tradesDash.classList.remove('hidden');
-            dom.step2.classList.add('hidden');
-        }
+        // Don't fetch immediately. Let user click Sync.
+        // Show dashboard directly
+        dom.tradesDash.classList.remove('hidden');
+        dom.step2.classList.add('hidden');
+        // Clear previous timeline
+        document.getElementById('trade-timeline').innerHTML = `
+            <div class="text-center text-emerald-500 italic py-10">
+                Click "Sync & Analyze" above to load your complete trade history.
+            </div>
+        `;
     }
+}
+
+// --- Trade Analysis Logic ---
+document.getElementById('run-trade-analysis-btn').addEventListener('click', handleAnalyzeTrades);
+
+async function handleAnalyzeTrades() {
+    const leagueId = activeLeagueId; // Need to capture this
+    const username = localStorage.getItem('shell_username');
+    
+    if (!leagueId || !username) return;
+
+    const btn = document.getElementById('run-trade-analysis-btn');
+    const loader = document.getElementById('trade-loading');
+    
+    btn.classList.add('hidden');
+    loader.classList.remove('hidden');
+
+    const data = await fetchApi('/analyze_trades', { league_id: leagueId, username: username });
+    
+    loader.classList.add('hidden');
+    btn.classList.remove('hidden');
+    btn.textContent = "Re-Sync Trades";
+
+    if (data && data.trades) {
+        renderTradeTimeline(data.trades);
+    }
+}
+
+function renderTradeTimeline(trades) {
+    const container = document.getElementById('trade-timeline');
+    if (trades.length === 0) {
+        container.innerHTML = '<p class="text-center text-emerald-300 text-lg">No trades found in your history!</p>';
+        return;
+    }
+
+    let html = '';
+    trades.forEach((t, index) => {
+        const isLeft = index % 2 === 0;
+        const gradeColor = t.net_grade > 0 ? 'text-green-400' : (t.net_grade < 0 ? 'text-red-400' : 'text-gray-400');
+        const gradeBg = t.net_grade > 0 ? 'bg-green-900/30 border-green-600' : (t.net_grade < 0 ? 'bg-red-900/30 border-red-600' : 'bg-gray-800 border-gray-600');
+        const gradeIcon = t.net_grade > 0 ? '📈' : (t.net_grade < 0 ? '📉' : '⚖️');
+        
+        // Build Assets Lists
+        const buildList = (assets, title) => {
+            if (!assets.length) return '';
+            return `
+                <div class="mb-3">
+                    <p class="text-xs font-bold text-emerald-500 uppercase mb-1">${title}</p>
+                    ${assets.map(a => `
+                        <div class="flex justify-between items-center text-sm bg-black/20 rounded px-2 py-1 mb-1">
+                            <span class="text-white">${a.name}</span>
+                            <span class="font-mono text-xs text-emerald-400">${a.type === 'player' ? Math.round(a.score) + ' pts' : ''}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        };
+
+        html += `
+            <div class="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                <!-- Icon -->
+                <div class="flex items-center justify-center w-10 h-10 rounded-full border-4 border-emerald-800 bg-emerald-600 text-white shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                    ${gradeIcon}
+                </div>
+                
+                <!-- Card -->
+                <div class="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-emerald-900/80 p-6 rounded-xl border-2 border-emerald-700 shadow-xl backdrop-blur-sm hover:border-orange-500 transition transform hover:-translate-y-1">
+                    <div class="flex justify-between items-start mb-4 border-b border-emerald-800 pb-2">
+                        <div>
+                            <span class="font-bold text-white text-lg">${t.date}</span>
+                            <span class="text-xs text-emerald-400 block font-mono">Season: ${t.season}</span>
+                        </div>
+                        <div class="text-right">
+                            <div class="font-black text-2xl ${gradeColor} drop-shadow-md">${t.net_grade > 0 ? '+' : ''}${Math.round(t.net_grade)}</div>
+                            <span class="text-xs uppercase tracking-widest text-emerald-500 font-bold">Net Value</span>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="${t.net_grade > 0 ? 'bg-green-900/20' : ''} rounded p-2">
+                            ${buildList(t.received, "Received")}
+                        </div>
+                        <div class="${t.net_grade < 0 ? 'bg-red-900/20' : ''} rounded p-2">
+                            ${buildList(t.sent, "Sent Away")}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
 }
 
 function renderTrades(trades) {

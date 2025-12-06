@@ -6,7 +6,28 @@ from app.services.sleeper import (
 )
 from app.logic.lottery import perform_nba_lottery
 from app.logic.analytics import calculate_team_analytics
+from app.logic.trade_analyzer import analyze_user_trades, sync_league_history
 import random
+
+@api_bp.route('/analyze_trades', methods=['POST'])
+def handle_analyze_trades():
+    data = request.json
+    league_id = data.get('league_id')
+    username = data.get('username')
+    
+    if not league_id or not username:
+        return jsonify({"error": "League ID and Username are required"}), 400
+        
+    user = get_user(username)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+        
+    try:
+        results = analyze_user_trades(user['user_id'], league_id)
+        return jsonify({"trades": results})
+    except Exception as e:
+        print(f"Error analyzing trades: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @api_bp.route('/get_player_details', methods=['POST'])
 def handle_get_player_details():

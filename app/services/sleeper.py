@@ -79,6 +79,36 @@ def get_users_in_league(league_id: str) -> List[Dict[str, Any]]:
         print(f"Error getting users in league: {e}")
         return []
 
+def get_drafts_for_league(league_id: str) -> List[Dict[str, Any]]:
+    try:
+        api_base = current_app.config['SLEEPER_API_BASE']
+        response = requests.get(f"{api_base}/league/{league_id}/drafts")
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error getting drafts for league {league_id}: {e}")
+        return []
+
+def get_draft(draft_id: str) -> Optional[Dict[str, Any]]:
+    try:
+        api_base = current_app.config['SLEEPER_API_BASE']
+        response = requests.get(f"{api_base}/draft/{draft_id}")
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error getting draft {draft_id}: {e}")
+        return None
+
+def get_draft_picks(draft_id: str) -> List[Dict[str, Any]]:
+    try:
+        api_base = current_app.config['SLEEPER_API_BASE']
+        response = requests.get(f"{api_base}/draft/{draft_id}/picks")
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error getting picks for draft {draft_id}: {e}")
+        return []
+
 def get_transactions(league_id: str, round_num: int) -> List[Dict[str, Any]]:
     try:
         api_base = current_app.config['SLEEPER_API_BASE']
@@ -88,3 +118,18 @@ def get_transactions(league_id: str, round_num: int) -> List[Dict[str, Any]]:
     except requests.exceptions.RequestException as e:
         print(f"Error getting transactions for week {round_num}: {e}")
         return []
+
+def get_nba_stats(season: str) -> Dict[str, Any]:
+    """
+    Fetches NBA player stats for a specific season.
+    Useful for grading trades.
+    """
+    try:
+        api_base = current_app.config['SLEEPER_API_BASE']
+        # Note: Stats endpoint might be heavy, consider caching if not already handled by DB logic
+        response = requests.get(f"{api_base}/stats/nba/regular/{season}")
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error getting stats for season {season}: {e}")
+        return {}

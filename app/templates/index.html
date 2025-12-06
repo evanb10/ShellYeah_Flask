@@ -165,10 +165,36 @@
         <!-- TRADES SECTION -->
         <div id="trades-container" class="hidden">
             <section id="trades-dashboard" class="hidden bg-emerald-800 p-6 rounded-2xl shadow-xl mt-6 border-b-8 border-emerald-950">
-                <h2 class="text-2xl mb-6 flex items-center text-white">
-                    <span class="mr-3 text-3xl">🤝</span> Recent Trades
+                <h2 class="text-2xl mb-6 flex items-center text-white justify-between">
+                    <span class="flex items-center gap-3"><span class="text-3xl">🤝</span> Trade History & Grading</span>
+                    <span class="text-xs font-mono bg-emerald-900 px-3 py-1 rounded text-emerald-400">BETA</span>
                 </h2>
-                <div id="trades-list" class="flex flex-col gap-6"></div>
+                
+                <div class="bg-emerald-900/50 p-6 rounded-xl border-2 border-emerald-700 text-center mb-8">
+                    <p class="text-emerald-200 mb-6 max-w-2xl mx-auto">
+                        View your complete trade timeline across all seasons. We'll grade each trade based on the 
+                        <strong>Total Fantasy Points</strong> produced by the assets since the trade occurred.
+                    </p>
+                    
+                    <button id="run-trade-analysis-btn" class="bg-green-500 hover:bg-green-400 text-emerald-900 font-black text-lg py-3 px-8 rounded-full shadow-lg border-b-4 border-green-700 active:border-b-0 active:translate-y-1 transition transform hover:scale-105">
+                        SYNC & ANALYZE HISTORY
+                    </button>
+                    
+                    <div id="trade-loading" class="hidden mt-6">
+                        <div class="animate-spin rounded-full h-10 w-10 border-b-4 border-green-400 mx-auto mb-3"></div>
+                        <p class="text-sm text-green-300 font-mono animate-pulse">
+                            Syncing league history & stats...<br>
+                            <span class="text-xs text-emerald-500">(This may take a minute for new leagues)</span>
+                        </p>
+                    </div>
+                </div>
+
+                <div id="trade-timeline" class="space-y-8 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-emerald-600 before:to-transparent">
+                    <!-- Timeline items injected here -->
+                    <div class="text-center text-emerald-500 italic py-10">
+                        Click "Sync & Analyze" to load your trade history.
+                    </div>
+                </div>
             </section>
         </div>
 

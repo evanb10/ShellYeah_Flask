@@ -6,6 +6,7 @@
 ## Architecture & Tech Stack
 *   **Language:** Python 3.10+
 *   **Framework:** Flask (Modular "Application Factory" pattern)
+*   **Database:** SQLite with Flask-SQLAlchemy (ORM)
 *   **Frontend:** Vanilla JavaScript (ES6+), TailwindCSS, Jinja2 Templates.
 *   **External API:** [Sleeper API](https://docs.sleeper.com/)
 *   **Testing:** `pytest`, `pytest-mock`, GitHub Actions CI.
@@ -17,20 +18,22 @@ The project follows a structured, scalable Flask layout:
 *   **`run.py`**: Entry point. Creates the app instance and runs the server.
 *   **`config.py`**: Configuration constants (e.g., API keys, base URLs).
 *   **`app/`**: Main application package.
-    *   **`__init__.py`**: Application factory function (`create_app`).
+    *   **`__init__.py`**: Application factory function (`create_app`). Initializes DB.
+    *   **`models.py`**: Database models (`League`, `Trade`, `TradeItem`, `PlayerStats`).
     *   **`api/`**: **Blueprint** for JSON API endpoints.
-        *   `routes.py`: Handles `/get_leagues`, `/run_lottery`, etc.
+        *   `routes.py`: Handles `/get_leagues`, `/run_lottery`, `/analyze_trades`, etc.
     *   **`main/`**: **Blueprint** for serving HTML.
         *   `routes.py`: Serves `index.html`.
     *   **`services/`**: External API interactions.
-        *   `sleeper.py`: Functions to fetch data from Sleeper (Players, Users, Leagues).
+        *   `sleeper.py`: Functions to fetch data from Sleeper (Players, Users, Leagues, Stats).
     *   **`logic/`**: Pure business logic (unit-testable).
         *   `lottery.py`: The weighted lottery simulation algorithm.
         *   `analytics.py`: Team stat calculations.
+        *   `trade_analyzer.py`: Logic for syncing league history and grading trades.
     *   **`templates/`**: Jinja2 HTML templates (`index.html`).
     *   **`static/`**: Static assets (`css/style.css`, `js/main.js`).
 *   **`tests/`**: Test suite.
-    *   `unit/`: Tests for `logic/`.
+    *   `unit/`: Tests for `logic/` (including trade analyzer).
     *   `functional/`: Tests for `api/` routes.
 *   **`.github/workflows/`**: CI/CD configuration.
 
@@ -71,4 +74,8 @@ The project follows a structured, scalable Flask layout:
     *   Assigns odds based on 1,000 combinations.
     *   Handles ties by splitting odds.
 3.  **Analytics:** Calculates average age, positional breakdown, and scoring stats.
-4.  **Trade Tracker:** detailed view of recent transactions.
+4.  **Trade Grading & History:**
+    *   **Net Grading:** Calculates "Win/Loss" grades for every trade based on the Net Fantasy Points of assets exchanged.
+    *   **History Sync:** Automatically syncs and links previous league seasons to build a complete multi-year timeline.
+    *   **Pick Resolution:** Intelligently resolves traded Draft Picks to the actual players selected (using historical Draft Results) and includes their stats in the trade valuation.
+    *   **Visual Timeline:** Displays an interactive, chronological feed of all transactions.
