@@ -30,6 +30,8 @@ const dom = {
     usernameIn: document.getElementById('username-input'),
     seasonIn: document.getElementById('season-input'),
     oddsPreset: document.getElementById('odds-preset'),
+    teamsPerDivision: document.getElementById('teams-per-division'),
+    teamsPerDivisionWrap: document.getElementById('teams-per-division-wrap'),
     revealBtn: document.getElementById('reveal-picks-btn'),
     navLottery: document.getElementById('nav-lottery'),
     navAnalytics: document.getElementById('nav-analytics'),
@@ -476,6 +478,8 @@ async function handleSelectLeague(id) {
         const data = await fetchApi('/get_lottery_teams', { league_id: id });
         if (data && data.teams) {
             lotteryTeams = data.teams;
+            const hasDivisions = lotteryTeams.some(t => t.division !== null && t.division !== undefined);
+            if (dom.teamsPerDivisionWrap) dom.teamsPerDivisionWrap.classList.toggle('hidden', !hasDivisions);
             populateLotteryTable();
             updateOdds();
             dom.setupSec.classList.remove('hidden');
@@ -688,14 +692,18 @@ function renderAnalytics(teams) {
 }
 
 dom.oddsPreset.onchange = updateOdds;
+if (dom.teamsPerDivision) dom.teamsPerDivision.oninput = updateOdds;
 function populateLotteryTable() {
     dom.teamsTable.innerHTML = '';
     lotteryTeams.forEach(t => {
         const avatarImg = t.avatar ? `<img src="${t.avatar}" class="team-avatar-sm border-emerald-500">` : '';
+        const divisionBadge = t.division_name
+            ? `<span class="text-xs bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded ml-2 font-mono">${t.division_name}</span>`
+            : '';
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td class="px-4 py-3 font-bold text-emerald-300">#${t.seed}</td>
-            <td class="px-4 py-3 flex items-center font-semibold">${avatarImg} ${t.team_name}</td>
+            <td class="px-4 py-3 flex items-center font-semibold">${avatarImg} ${t.team_name}${divisionBadge}</td>
             <td class="px-4 py-3 text-emerald-400 font-mono">${t.wins}-${t.losses}</td>
             <td class="px-4 py-3"><input type="number" data-seed="${t.seed}" class="odds-input w-20 bg-emerald-900 text-white p-2 rounded border border-emerald-600 focus:border-orange-500 outline-none text-center font-mono" value="0"></td>
         `;
@@ -704,34 +712,76 @@ function populateLotteryTable() {
     document.querySelectorAll('.odds-input').forEach(i => i.addEventListener('input', calculateTotalOdds));
 }
 
+// Decide which seeds make up the default lottery pool. With divisions, that's the
+// worst `teams per division` from each division; without divisions, fall back to the
+// legacy "worst N overall" based on league size. lotteryTeams is already sorted
+// worst-first (seed 1 = worst).
+function getDefaultLotterySeeds() {
+    const hasDivisions = lotteryTeams.some(t => t.division !== null && t.division !== undefined);
+
+    if (!hasDivisions) {
+        const totalTeams = lotteryTeams.length;
+        let eligibleCount = 4;
+        if (totalTeams === 14) eligibleCount = 6;
+        else if (totalTeams === 12 || totalTeams === 10) eligibleCount = 4;
+        else if (totalTeams === 8) eligibleCount = 2;
+        return lotteryTeams
+            .map(t => t.seed)
+            .sort((a, b) => a - b)
+            .slice(0, eligibleCount);
+    }
+
+    const perDivision = Math.max(1, parseInt(dom.teamsPerDivision && dom.teamsPerDivision.value) || 2);
+    const byDivision = {};
+    lotteryTeams.forEach(t => {
+        if (!byDivision[t.division]) byDivision[t.division] = [];
+        byDivision[t.division].push(t);
+    });
+
+    const eligibleSeeds = [];
+    Object.values(byDivision).forEach(group => {
+        group.sort((a, b) => a.seed - b.seed); // worst first within the division
+        group.slice(0, perDivision).forEach(t => eligibleSeeds.push(t.seed));
+    });
+    return eligibleSeeds;
+}
+
+// Build a {position: combos} map for `count` eligible teams (position 1 = worst).
+function buildPositionOdds(count, preset) {
+    const flat = () => {
+        const map = {};
+        if (count > 0) {
+            const share = Math.floor(1000 / count);
+            for (let p = 1; p <= count; p++) {
+                map[p] = (p === 1) ? share + (1000 - share * count) : share;
+            }
+        }
+        return map;
+    };
+
+    if (preset === 'flat' || count === 0) return flat();
+
+    const weighted = ODDS_PRESETS['nba-2025'][count];
+    return weighted ? weighted : flat(); // no weighted preset for this count -> flat
+}
+
 function updateOdds() {
     const preset = dom.oddsPreset.value;
     const inputs = document.querySelectorAll('.odds-input');
-    const totalTeams = lotteryTeams.length;
-    
-    let eligibleCount = 4; // Default
-    if (totalTeams === 14) eligibleCount = 6;
-    else if (totalTeams === 12 || totalTeams === 10) eligibleCount = 4;
-    else if (totalTeams === 8) eligibleCount = 2;
 
-    if (preset === 'flat') {
-        const share = Math.floor(1000 / eligibleCount);
-        inputs.forEach((inp, i) => { 
-            const seed = i + 1;
-            if (seed <= eligibleCount) {
-                inp.value = (i === 0) ? share + (1000 - (share * eligibleCount)) : share;
-            } else {
-                inp.value = 0;
-            }
-        });
-    } else {
-        const mapData = ODDS_PRESETS['nba-2025'];
-        const map = mapData[eligibleCount] || mapData['default'];
-        inputs.forEach((inp, i) => {
-            const seed = i + 1;
-            inp.value = map[seed] || 0;
-        });
-    }
+    // Eligible seeds ranked worst-first, mapped to weighting positions.
+    const eligibleSeeds = getDefaultLotterySeeds().sort((a, b) => a - b);
+    const positionBySeed = {};
+    eligibleSeeds.forEach((seed, idx) => { positionBySeed[seed] = idx + 1; });
+
+    const oddsByPosition = buildPositionOdds(eligibleSeeds.length, preset);
+
+    inputs.forEach(inp => {
+        const seed = parseInt(inp.dataset.seed);
+        const position = positionBySeed[seed];
+        inp.value = position ? (oddsByPosition[position] || 0) : 0;
+    });
+
     calculateTotalOdds();
 }
 

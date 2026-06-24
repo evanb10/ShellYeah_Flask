@@ -1,4 +1,4 @@
-from app.logic.lottery import perform_nba_lottery
+from app.logic.lottery import perform_nba_lottery, average_tied_odds
 
 def test_perform_nba_lottery_logic():
     # Setup
@@ -69,3 +69,49 @@ def test_perform_nba_lottery_with_non_lottery_teams():
     
     assert pick_5["team_name"] == "Non-Lott 5"
     assert pick_6["team_name"] == "Non-Lott 6"
+
+
+def test_average_tied_odds_excludes_non_lottery_teams():
+    # Seeds 1 and 2 share a record, but only seed 1 is in the lottery (odds > 0).
+    teams = [
+        {"seed": 1, "wins": 2, "losses": 8},
+        {"seed": 2, "wins": 2, "losses": 8},
+    ]
+    odds_map = {"1": 250, "2": 0}
+
+    result = average_tied_odds(teams, odds_map)
+
+    # Seed 2 is not part of the lottery, so nothing is averaged.
+    assert result["1"] == 250
+    assert result["2"] == 0
+
+
+def test_average_tied_odds_splits_between_lottery_teams():
+    # Both tied teams are in the lottery -> combined odds split evenly.
+    teams = [
+        {"seed": 1, "wins": 2, "losses": 8},
+        {"seed": 2, "wins": 2, "losses": 8},
+    ]
+    odds_map = {"1": 300, "2": 200}
+
+    result = average_tied_odds(teams, odds_map)
+
+    assert result["1"] == 250
+    assert result["2"] == 250
+
+
+def test_average_tied_odds_distributes_remainder():
+    # Three tied lottery teams; an odd total gives the extra combo to the worst seed.
+    teams = [
+        {"seed": 1, "wins": 2, "losses": 8},
+        {"seed": 2, "wins": 2, "losses": 8},
+        {"seed": 3, "wins": 2, "losses": 8},
+    ]
+    odds_map = {"1": 100, "2": 100, "3": 101}  # total 301
+
+    result = average_tied_odds(teams, odds_map)
+
+    assert result["1"] == 101
+    assert result["2"] == 100
+    assert result["3"] == 100
+    assert sum(result.values()) == 301

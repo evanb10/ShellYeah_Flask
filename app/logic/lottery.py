@@ -56,3 +56,45 @@ def perform_nba_lottery(teams_by_seed: Dict[int, Dict[str, Any]], odds_map: Dict
         })
 
     return final_order
+
+
+def average_tied_odds(teams, odds_map):
+    """
+    Tied teams (identical wins and losses) split their combined combinations
+    evenly. Only teams that are part of the lottery — i.e. that were assigned
+    odds (> 0) on the setup screen — take part, so a tied non-lottery team never
+    inherits combinations. Mutates and returns ``odds_map``.
+    """
+    lottery_teams = [
+        t for t in sorted(teams, key=lambda t: t['seed'])
+        if int(odds_map.get(str(t['seed']), 0)) > 0
+    ]
+
+    groups = []
+    if lottery_teams:
+        current_group = [lottery_teams[0]]
+        for i in range(1, len(lottery_teams)):
+            prev = lottery_teams[i - 1]
+            curr = lottery_teams[i]
+            if prev['wins'] == curr['wins'] and prev['losses'] == curr['losses']:
+                current_group.append(curr)
+            else:
+                groups.append(current_group)
+                current_group = [curr]
+        groups.append(current_group)
+
+    for group in groups:
+        if len(group) > 1:
+            total_group_odds = sum(int(odds_map.get(str(t['seed']), 0)) for t in group)
+            count = len(group)
+            base_share = total_group_odds // count
+            remainder = total_group_odds % count
+
+            for team in group:
+                value = base_share
+                if remainder > 0:
+                    value += 1
+                    remainder -= 1
+                odds_map[str(team['seed'])] = value
+
+    return odds_map

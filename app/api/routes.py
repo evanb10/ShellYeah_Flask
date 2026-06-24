@@ -4,7 +4,7 @@ from app.services.sleeper import (
     get_all_players, get_user, get_leagues_for_user, get_league_details, 
     get_rosters, get_users_in_league, get_transactions
 )
-from app.logic.lottery import perform_nba_lottery
+from app.logic.lottery import perform_nba_lottery, average_tied_odds
 from app.logic.analytics import calculate_team_analytics
 from app.logic.trade_analyzer import analyze_user_trades, sync_league_history
 import random
@@ -103,7 +103,14 @@ def handle_get_lottery_teams():
     if not prev_league_id:
         return jsonify({"error": "No previous season found linked to this league."}), 404
         
-    # We don't need prev_league_details per se, just the users/rosters
+    # Pull the previous league's details too, so we can resolve division names.
+    prev_league = get_league_details(prev_league_id) or {}
+    prev_metadata = prev_league.get('metadata', {}) or {}
+
+    def division_name(division_id):
+        if division_id is None:
+            return None
+        return prev_metadata.get(f'division_{division_id}') or f'Division {division_id}'
     
     users = get_users_in_league(prev_league_id)
     avatar_base = current_app.config['SLEEPER_AVATAR_BASE']
@@ -118,18 +125,23 @@ def handle_get_lottery_teams():
 
     rosters = get_rosters(prev_league_id)
     
+    # Seed worst-first by record, using points-for as the tie-breaker. The shuffle
+    # only breaks exact (wins, fpts) ties, matching the previous behaviour.
     random.shuffle(rosters)
-    rosters.sort(key=lambda r: r['settings']['wins'])
+    rosters.sort(key=lambda r: (r['settings']['wins'], r['settings'].get('fpts', 0)))
     
     lottery_teams_data = []
     for i, roster in enumerate(rosters):
         user_info = user_map.get(roster['owner_id'], {"name": f"Team {roster['owner_id']}", "avatar": None})
+        division_id = roster.get('settings', {}).get('division')
         lottery_teams_data.append({
             "seed": i + 1,
             "team_name": user_info["name"],
             "avatar": user_info["avatar"],
             "wins": roster['settings']['wins'],
-            "losses": roster['settings']['losses']
+            "losses": roster['settings']['losses'],
+            "division": division_id,
+            "division_name": division_name(division_id)
         })
 
     return jsonify({"teams": lottery_teams_data})
@@ -260,37 +272,9 @@ def handle_run_lottery():
     
     teams.sort(key=lambda t: t['seed'])
 
-    groups = []
-    if teams:
-        current_group = [teams[0]]
-        for i in range(1, len(teams)):
-            prev = teams[i-1]
-            curr = teams[i]
-            if prev['wins'] == curr['wins'] and prev['losses'] == curr['losses']:
-                current_group.append(curr)
-            else:
-                groups.append(current_group)
-                current_group = [curr]
-        groups.append(current_group)
-
-    for group in groups:
-        if len(group) > 1:
-            total_group_odds = 0
-            for team in group:
-                seed_str = str(team['seed'])
-                total_group_odds += int(odds_map.get(seed_str, 0))
-            
-            count = len(group)
-            base_share = total_group_odds // count
-            remainder = total_group_odds % count
-            
-            for i, team in enumerate(group):
-                seed_str = str(team['seed'])
-                value = base_share
-                if remainder > 0:
-                    value += 1
-                    remainder -= 1
-                odds_map[seed_str] = value
+    # Tied teams share their combined combinations equally, but only teams that are
+    # actually in the lottery (assigned odds > 0) take part.
+    average_tied_odds(teams, odds_map)
 
     teams_by_seed = {team['seed']: team for team in teams}
     final_order = perform_nba_lottery(teams_by_seed, odds_map)
